@@ -1,0 +1,45 @@
+"use server";
+import { getSession } from "@/lib/auth-server";
+import { orm } from "@/lib/db-compat";
+import sendEmail from "@/lib/sendmail";
+import { revalidatePath } from "next/cache";
+
+export const activateUser = async (userId: string) => {
+  const session = await getSession();
+  if (!session) return { error: "Unauthorized" };
+
+  if (!userId) return { error: "userId is required" };
+
+  try {
+    const user = await orm.users.update({
+      where: { id: userId },
+      data: { userStatus: "ACTIVE" },
+    });
+
+    let message;
+    switch (user.userLanguage) {
+      case "en":
+        message = `You account has been activated in ${process.env.NEXT_PUBLIC_APP_NAME} \n\n Your username is: ${user.email} \n\n Please login to ${process.env.NEXT_PUBLIC_APP_URL} \n\n Thank you \n\n ${process.env.NEXT_PUBLIC_APP_NAME}`;
+        break;
+      case "cz":
+        message = `Váš účet v aplikaci ${process.env.NEXT_PUBLIC_APP_NAME} byl aktivován. \n\n Vaše uživatelské jméno je: ${user.email} \n\n  Prosím přihlašte se na ${process.env.NEXT_PUBLIC_APP_URL} \n\n Děkujeme \n\n ${process.env.NEXT_PUBLIC_APP_NAME}`;
+        break;
+      default:
+        message = `You account has been activated in ${process.env.NEXT_PUBLIC_APP_NAME} \n\n Your username is: ${user.email} \n\n Please login to ${process.env.NEXT_PUBLIC_APP_URL} \n\n Thank you \n\n ${process.env.NEXT_PUBLIC_APP_NAME}`;
+        break;
+    }
+
+    await sendEmail({
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: `Invitation to ${process.env.NEXT_PUBLIC_APP_NAME}`,
+      text: message,
+    });
+
+    revalidatePath("/admin", "page");
+    return { data: user };
+  } catch (error) {
+    console.log("[ACTIVATE_USER]", error);
+    return { error: "Failed to activate user" };
+  }
+};

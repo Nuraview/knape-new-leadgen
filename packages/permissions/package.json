@@ -1,0 +1,30 @@
+{
+	"name": "@nuraview/permissions",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"license": "MIT",
+	"scripts": {
+		"build": "tsc",
+		"lint": "biome check --write .",
+		"test": "vitest run --config vitest.config.ts",
+		"test:watch": "vitest --config vitest.config.ts"
+	},
+	"dependencies": {
+		"better-auth": "^1.6.9"
+	},
+	"devDependencies": {
+		"@nuraview/typescript-config": "workspace:*",
+		"typescript": "^5.9.2",
+		"vite": "^7.3.5",
+		"vitest": "^4.1.10"
+	}
+}

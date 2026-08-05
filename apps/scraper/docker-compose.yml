@@ -1,0 +1,37 @@
+services:
+  nuraview-scraper:
+    build: .
+    container_name: nuraview-scraper
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - TZ=Asia/Kolkata
+    volumes:
+      # Independent Upwork session — do NOT share with /root/upwork-scraper/.
+      # Seed this file once with a valid cookies export; the scraper will
+      # persist refreshes here.
+      - ./cookies.json:/app/upwork_cookies.json
+      - ./logs:/app/logs
+    # Memory limits — Camoufox can spike.
+    deploy:
+      resources:
+        limits:
+          # Camoufox runs one browser per parallel keyword and will happily eat
+          # the whole box — it pinned the VPS at load 15 on 6 cores. Capped so
+          # the CRM (same host since the Vercel migration) always has cores.
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          memory: 1G
+    mem_limit: 4g
+    memswap_limit: 4g
+    # Visible health signal — `docker ps` shows (unhealthy) within ~1 min
+    # if Flask dies. The entrypoint already handles container-exit on child
+    # death, but having `unhealthy` show up also gives us a fast eyeball
+    # check from the VPS without needing to dig through logs.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:5007/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s

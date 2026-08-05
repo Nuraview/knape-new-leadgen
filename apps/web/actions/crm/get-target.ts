@@ -1,0 +1,31 @@
+"use server";
+import { orm } from "@/lib/db-compat";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const getTarget = async (targetId: string) => {
+  if (!UUID_REGEX.test(targetId)) return null;
+
+  const target = await orm.crm_Targets.findUnique({
+    where: { id: targetId },
+    include: {
+      crate_by_user: { select: { name: true } },
+      target_lists: { include: { target_list: true } },
+      target_contacts: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          title: true,
+          phone: true,
+          linkedinUrl: true,
+          source: true,
+          enrichStatus: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+  return target;
+};

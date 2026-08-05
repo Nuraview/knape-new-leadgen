@@ -1,0 +1,25 @@
+{
+  "upstream": "https://github.com/usekaneo/kaneo",
+  "license": "MIT",
+  "vendoredSha": "debad748a86f3d2065b0a156c7b36a7e65610683",
+  "vendoredOn": "2026-07-27",
+  "referenceClone": "~/src/kaneo-upstream (kept OUTSIDE this repo, read-only)",
+  "paths": {
+    "apps/api": "apps/api",
+    "apps/web": "apps/app",
+    "packages/email": "packages/email",
+    "packages/libs": "packages/libs",
+    "packages/mcp": "packages/mcp",
+    "packages/permissions": "packages/permissions",
+    "packages/typescript-config": "packages/typescript-config",
+    "i18n": "i18n"
+  },
+  "adaptations": [
+    "@kaneo/* package namespace -> @nuraview/*",
+    "KANEO_* env vars -> NURAVIEW_*",
+    "product branding Kaneo -> NuraView across code and i18n",
+    "apps/web -> apps/app (apps/web is the legacy Next.js app)",
+    "vite.config.ts: added resolve.dedupe for react/react-dom (see note)"
+  ],
+  "takingUpstreamUpdates": "One-way copy, not a sync. To review upstream changes: cd ~/src/kaneo-upstream && git log --oneline debad748..HEAD -- <path>, then hand-apply. Budget ~half a day per quarter; expect to stop once CRM domains are folded in."
+}

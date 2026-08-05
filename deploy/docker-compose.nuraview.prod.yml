@@ -1,0 +1,55 @@
+# NuraView (new stack) — PRODUCTION compose, image-based.
+#
+# This is the file the deploy workflow ships to /root/nuraview-app/. It differs
+# from the build-based compose in exactly one way: images are PULLED from GHCR
+# rather than built on the box.
+#
+# Why the images are built in CI and not here: `bun run build` for the SPA plus
+# a full workspace install needs more RAM than is comfortable on a box that is
+# also running two headless-browser scrapers and Postgres. Building on the VPS
+# worked, but it competed with production workloads for several minutes on
+# every deploy.
+#
+# The build-based file (docker-compose.yml in this directory) is kept so the
+# box can still be rebuilt from source without CI — restore it if GHCR is
+# unreachable.
+#
+# NURAVIEW_APP_IMAGE / NURAVIEW_API_IMAGE are set by the workflow to a
+# commit-pinned tag, never :latest — a rollback has to be able to name the
+# exact image it is going back to.
+services:
+  nuraview-api:
+    image: ${NURAVIEW_API_IMAGE:-ghcr.io/nuraview/nv-crm-api:latest}
+    container_name: nuraview-api
+    restart: unless-stopped
+    env_file: /root/nuraview-app/.env
+    ports:
+      - "127.0.0.1:3011:1337"
+    networks: [default, crmnet, minionet]
+
+  nuraview-app:
+    # The image is now just nginx + config. The SPA FILES come from the bind
+    # mount below: CI builds dist/ on the runner and rsyncs it straight to
+    # /www/wwwroot/nuraview-spa. Building, pushing and pulling a Docker image
+    # to move ~20 MB of static files was the bulk of every frontend deploy —
+    # six minutes of image work for a 36-second vite build. A frontend deploy
+    # is now a file copy, and needs no container restart at all.
+    image: ${NURAVIEW_APP_IMAGE:-ghcr.io/nuraview/nv-crm-app:latest}
+    container_name: nuraview-app
+    restart: unless-stopped
+    volumes:
+      - /www/wwwroot/nuraview-spa:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:3012:80"
+
+networks:
+  # The CRM postgres lives on the compose network created by
+  # /root/nuraview-crm — joining it lets the API reach the database by
+  # container name instead of over a tunnel.
+  crmnet:
+    external: true
+    name: nuraview-crm_default
+  # cap-minio lives here; the API needs it to sign and store attachments.
+  minionet:
+    external: true
+    name: nuraview

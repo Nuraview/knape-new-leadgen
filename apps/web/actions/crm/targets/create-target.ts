@@ -1,0 +1,37 @@
+"use server";
+import { getSession } from "@/lib/auth-server";
+import { orm } from "@/lib/db-compat";
+import { revalidatePath } from "next/cache";
+
+export const createTarget = async (data: {
+  last_name?: string;
+  first_name?: string;
+  email?: string;
+  mobile_phone?: string;
+  office_phone?: string;
+  company?: string;
+  company_website?: string;
+  personal_website?: string;
+  position?: string;
+  social_x?: string;
+  social_linkedin?: string;
+  social_instagram?: string;
+  social_facebook?: string;
+  status?: boolean;
+}) => {
+  const session = await getSession();
+  if (!session) return { error: "Unauthorized" };
+
+  const { last_name, email, mobile_phone, ...rest } = data;
+  if (!last_name && !data.company) return { error: "last_name or company is required" };
+
+  try {
+    const target = await orm.crm_Targets.create({
+      data: { last_name: last_name ?? "", email, mobile_phone, ...rest, created_by: (session.user as any).id },
+    });
+    revalidatePath("/crm/targets", "page");
+    return { data: target };
+  } catch (error) {
+    return { error: "Failed to create target" };
+  }
+};

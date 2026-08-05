@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.*.bak
+.env.bak.*
+cookies.json
+logs/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

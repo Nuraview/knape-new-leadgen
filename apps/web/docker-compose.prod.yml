@@ -1,0 +1,71 @@
+# NuraviewCRM on the VPS (deployed to /root/nuraview-crm/).
+#
+# The image is built in GitHub Actions and pulled from GHCR — there is no
+# `build:` here on purpose. Secrets live in /root/nuraview-crm/.env (mode 600),
+# which the deploy never overwrites.
+#
+# Shared `nuraview` network so the app can reach cap-minio (object storage) and
+# nuraview-inngest by container name instead of going out to the public internet.
+
+services:
+  app:
+    image: ${CRM_IMAGE:-ghcr.io/nuraview/nv-crm:latest}
+    container_name: nuraview-crm
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    ports:
+      # 3000 is cap-web, so the CRM sits on 3005; nginx terminates TLS.
+      - "127.0.0.1:3005:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - nuraview
+    mem_limit: 2g
+    cpus: 2.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: nuraview-crm-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nuracrm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-nuracrm}
+    volumes:
+      - crm_pg_data:/var/lib/postgresql/data
+    ports:
+      # Loopback only — for pg_dump/psql from the host, never public.
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nuracrm} -d ${POSTGRES_DB:-nuracrm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+    mem_limit: 1g
+    shm_size: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  crm_pg_data:
+
+networks:
+  default:
+  nuraview:
+    external: true

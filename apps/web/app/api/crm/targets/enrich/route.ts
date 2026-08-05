@@ -1,0 +1,159 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth-server";
+import { orm } from "@/lib/db-compat";
+import { AgentEnrichmentStrategy } from "@/lib/enrichment/strategies/agent-enrichment-strategy";
+import type { EnrichmentField } from "@/lib/enrichment/types";
+import type { StoredEnrichmentResult } from "@/lib/enrichment/types/stored-result";
+import { validateEnrichRequest } from "./validate";
+import { getApiKey } from "@/lib/api-keys";
+import { FIELD_MAP } from "@/lib/enrichment/presets/target-fields";
+
+export const runtime = "nodejs";
+
+const activeSessions = new Map<string, { controller: AbortController; enrichmentId: string }>();
+
+export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const firecrawlApiKey = await getApiKey("FIRECRAWL", session.user.id);
+  const openaiApiKey = await getApiKey("OPENAI", session.user.id);
+  if (!firecrawlApiKey || !openaiApiKey) {
+    return NextResponse.json({ error: "NO_API_KEY" }, { status: 402 });
+  }
+
+  const body = await request.json();
+  const { targetId, fields } = body as { targetId: string; fields: EnrichmentField[] };
+  const validationError = validateEnrichRequest({ targetId, fields });
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
+  const validFieldNames = new Set(Object.keys(FIELD_MAP));
+  const invalidFields = (fields as EnrichmentField[]).filter((f) => !validFieldNames.has(f.name));
+  if (invalidFields.length > 0) {
+    return NextResponse.json(
+      { error: `Unknown fields: ${invalidFields.map((f) => f.name).join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  const target = await orm.crm_Targets.findUnique({
+    where: { id: targetId },
+    select: { id: true, email: true, company: true, company_website: true },
+  });
+
+  if (!target) {
+    return NextResponse.json({ error: "Target not found" }, { status: 404 });
+  }
+
+  // Scenario 1: personal search — requires email
+  // Scenario 2: company search — requires company name
+  if (!target.email && !target.company) {
+    return NextResponse.json(
+      { error: "Add an email (personal search) or company name (company search) to this target before enriching." },
+      { status: 422 }
+    );
+  }
+
+  const enrichmentRecord = await orm.crm_Target_Enrichment.create({
+    data: {
+      targetId,
+      status: "RUNNING",
+      fields: fields.map((f) => f.name),
+      triggeredBy: session.user.id,
+    },
+  });
+
+  const sessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const abortController = new AbortController();
+  activeSessions.set(sessionId, { controller: abortController, enrichmentId: enrichmentRecord.id });
+
+  request.signal.addEventListener("abort", () => {
+    abortController.abort();
+  });
+
+  const encoder = new TextEncoder();
+  const strategy = new AgentEnrichmentStrategy(openaiApiKey, firecrawlApiKey);
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const enqueue = (data: object) =>
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+
+      try {
+        enqueue({ type: "session", sessionId });
+
+        const result = await strategy.enrichRow(
+          { email: target.email ?? '' },
+          fields,
+          "email",
+          undefined,
+          (message: string, type: 'info' | 'success' | 'warning' | 'agent') => {
+            enqueue({ type: "agent_progress", message, messageType: type });
+          },
+          {
+            companyName: target.company ?? undefined,
+            companyWebsite: target.company_website ?? undefined,
+          }
+        );
+
+        const stored: StoredEnrichmentResult = {
+          enrichments: result.enrichments,
+          status: result.status as "completed" | "error" | "skipped",
+          error: result.error,
+        };
+
+        await orm.crm_Target_Enrichment.update({
+          where: { id: enrichmentRecord.id },
+          data: { status: "COMPLETED", result: stored as object },
+        });
+
+        enqueue({ type: "result", result: stored, enrichmentId: enrichmentRecord.id });
+        enqueue({ type: "complete" });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        await orm.crm_Target_Enrichment.update({
+          where: { id: enrichmentRecord.id },
+          data: { status: "FAILED", error: message },
+        }).catch(() => {});
+        enqueue({ type: "error", error: message });
+      } finally {
+        activeSessions.delete(sessionId);
+        controller.close();
+      }
+    },
+  });
+
+  return new NextResponse(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+export async function DELETE(request: NextRequest) {
+  const sessionId = new URL(request.url).searchParams.get("sessionId");
+  if (!sessionId) {
+    return NextResponse.json({ error: "sessionId required" }, { status: 400 });
+  }
+
+  const entry = activeSessions.get(sessionId);
+  if (!entry) {
+    return NextResponse.json({ error: "Session not found or already complete" }, { status: 404 });
+  }
+
+  entry.controller.abort();
+  activeSessions.delete(sessionId);
+
+  await orm.crm_Target_Enrichment.update({
+    where: { id: entry.enrichmentId },
+    data: { status: "FAILED", error: "Cancelled by user" },
+  }).catch(() => {});
+
+  return NextResponse.json({ success: true });
+}

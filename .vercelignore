@@ -1,0 +1,40 @@
+# Keeps the Vercel upload small. Patterns are root-anchored where it matters:
+#
+#  - apps/web MUST NOT be excluded. It is a declared workspace in the root
+#    package.json, and removing it makes `bun install` fail with
+#    "Workspace not found apps/web" before the build even starts.
+#  - *.png MUST NOT be excluded globally. apps/app/public/brand/*.png are Dan's
+#    logo and PWA icons; a blanket rule silently ships an unbranded app.
+node_modules
+.venv
+__pycache__
+
+# Heavy repo artifacts, root only
+/*.sql
+/*.zip
+/*.pdf
+/*.docx
+/*.png
+/*.avif
+
+# NOT root-anchored. apps/web/backups holds a 90MB SQL dump and a leads
+# ndjson; with a leading slash they sailed through and the upload died on
+# Vercel's 100MB per-file limit.
+backups
+/.supermemory
+/.omo
+/.codegraph
+
+# Apps that are not workspaces and are deployed elsewhere (VPS)
+/apps/cap
+/apps/browser-use
+/apps/scraper
+/apps/whatsapp
+# Python cockpit — deploys to the VPS via .github/workflows/deploy-leadgen.yml,
+# never to Vercel. Uploading it would only slow every build.
+/apps/leadgen
+
+# Build output
+/apps/web/.next
+/apps/app/dist
+/apps/api/dist

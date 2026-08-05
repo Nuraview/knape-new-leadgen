@@ -1,0 +1,6 @@
+{
+  "_comment": "Ratchet baselines. CI fails if a count RISES above these. Lower them whenever you fix errors — never raise them. Goal is 0/0, at which point next.config.js can drop typescript.ignoreBuildErrors.",
+  "_measured": "2026-07-27",
+  "tscErrors": 177,
+  "eslintErrors": 45
+}

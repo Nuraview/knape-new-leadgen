@@ -1,0 +1,56 @@
+# Build context is the repo ROOT (the root is a bun workspace), so this is a
+# whitelist rather than a blacklist. The root holds a lot that must never enter
+# an image or even the context: a 173 MB nvcrm_backup*.sql dump, .env files,
+# and several agent/tooling directories (.claude, .codegraph, .omo, .agents,
+# .supermemory) containing broken symlinks — those abort the build outright
+# with "invalid file request", not a warning.
+#
+# Blacklisting them one at a time was whack-a-mole: anything new dropped at the
+# root would break the deploy. Exclude everything by default instead.
+
+*
+
+# --- re-include only what the build needs ---
+!package.json
+!bun.lock
+!bunfig.toml
+!apps/web
+!packages
+
+# The new Hono + Vite stack. These were missing, and the omission was invisible
+# for as long as the images were built on the VPS — /root/nuraview-app has no
+# .dockerignore, so a VPS build sees the whole tree regardless of this file.
+# The first CI build failed instantly on "/deploy/package.app.json: not found".
+!apps/api
+!apps/app
+!i18n
+!deploy
+
+# --- prune inside the re-included trees ---
+apps/web/node_modules
+apps/web/.next
+# 375 MB of pg_dump output. Git-ignored, so it was invisible until it showed up
+# as 400 MB of Docker build context.
+apps/web/backups
+apps/web/*.tsbuildinfo
+apps/web/.env
+apps/web/.env.*
+apps/web/tests
+apps/web/__tests__
+apps/web/playwright-report
+apps/web/test-results
+apps/web/docs
+apps/web/.vercel
+apps/web/**/*.md
+packages/**/node_modules
+packages/**/dist
+apps/api/node_modules
+apps/app/node_modules
+apps/app/dist
+apps/api/.env
+apps/api/.env.*
+apps/app/.env
+apps/app/.env.*
+apps/**/*.tsbuildinfo
+**/*.log
+**/.DS_Store

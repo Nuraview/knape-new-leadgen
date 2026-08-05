@@ -1,0 +1,5 @@
+# Vite build output. Built inside Dockerfile.nuraview at deploy time, so a
+# committed copy is pure churn — every rebuild rewrites ~330 hashed filenames.
+dist/
+.vercel
+.env*

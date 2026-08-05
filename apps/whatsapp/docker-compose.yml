@@ -1,0 +1,25 @@
+services:
+  nuraview-whatsapp:
+    build: .
+    container_name: nuraview-whatsapp
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - TZ=Asia/Kolkata
+    ports:
+      # Bind to localhost only — the service is reached via Cloudflare Tunnel
+      # or reverse proxy, never directly from the public internet. WhatsApp
+      # account-takeover attempts on an exposed port would be very bad.
+      - "127.0.0.1:3001:3001"
+    volumes:
+      # Auth state — pairing creds. Loss = re-pair via QR. Back this up.
+      - ./auth:/app/auth
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    mem_limit: 512m
+    memswap_limit: 512m

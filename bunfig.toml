@@ -1,0 +1,7 @@
+# Flat (hoisted) node_modules, matching the layout this repo's type overrides
+# expect. Bun 1.3 defaults to an isolated pnpm-style store, under which
+# `@types/react` (overridden to types-react@19.0.0-rc.1) stops resolving and
+# `tsc --noEmit` jumps from 179 errors to 586 — all resolution noise, not real
+# defects. Revisit when the overrides are gone.
+[install]
+linker = "hoisted"

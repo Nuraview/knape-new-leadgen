@@ -1,0 +1,39 @@
+{
+  "competitors": {
+    "names": [
+      "Always Grind",
+      "Grind 365",
+      "All In Wrestlers Journal"
+    ],
+    "domains": [
+      "alwaysgrind365.com",
+      "alwaysgrindfootball.com",
+      "allinwrestlersjournal.com"
+    ],
+    "name_substrings": [
+      "always grind",
+      "grind 365",
+      "grind365",
+      "all in wrestlers",
+      "wrestlers journal",
+      "planner company",
+      "day designer",
+      "passion planner",
+      "panda planner"
+    ]
+  },
+  "partners": {
+    "names": ["Win the Day Planner"],
+    "domains": ["winthedayplanner.com"],
+    "name_substrings": ["win the day"]
+  },
+  "staffing_agencies": {
+    "names": [],
+    "domains": [],
+    "name_substrings": [
+      "staffing",
+      "recruiting agency",
+      "talent acquisition agency"
+    ]
+  }
+}

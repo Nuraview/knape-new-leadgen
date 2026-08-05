@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.local
+.env.example
+auth
+logs
+.git
+.gitignore
+*.md

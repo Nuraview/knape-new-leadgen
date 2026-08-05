@@ -1,0 +1,43 @@
+# Trimmed from the standalone repo's ignore file: the entries for frontend/,
+# landing*/ and the client-delivered binaries are gone because those trees did
+# not come across — the SPA replaced the frontend, the landing sites deploy
+# separately, and the PDFs/zips were litter.
+
+# Live secrets: SMTP passwords, Apify, Hunter, OpenAI and the search-provider
+# keys are all read from here.
+.env
+.env.*
+deploy/postgres.env
+deploy/outreach/inbox_creds.json
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.requirements.md5
+
+# Runtime pipeline artifacts — live logs and caches, not source.
+outreach_data/
+data_archive/
+logs/
+*.db
+*.sqlite3
+.~lock.*#
+
+# Bulky server-side data. Both are regenerated or re-downloaded rather than
+# edited, and carrying them would multiply the size of every clone of this
+# monorepo:
+#   data/nces/                        ~80MB, see sources/nces_schools.py
+#   data/grant_geography_v2.json      ~5MB, built by build_grant_geography_index
+#   outreach/static/email/creatives/  ~46MB of campaign GIFs
+data/nces/
+data/grant_geography_v2.json
+outreach/static/email/creatives/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+*.playwright-mcp
+page-*.yml
+console-*.log

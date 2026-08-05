@@ -1,0 +1,12 @@
+-- Remove public boards.
+--
+-- project.is_public fed GET /public-project/:id, which was served ahead of the
+-- auth middleware: flipping one switch published an entire board — every card,
+-- description and label — to anyone with the id. There is no such thing as a
+-- public project here. Boards are internal, for signed-in employees, and an
+-- employee sees only the projects they are assigned to (project_member).
+--
+-- The endpoint, the page and the Visibility settings tab are gone; dropping the
+-- column is what makes the flag unrecoverable, including on any board where
+-- someone had already switched it on.
+ALTER TABLE "project" DROP COLUMN IF EXISTS "is_public";

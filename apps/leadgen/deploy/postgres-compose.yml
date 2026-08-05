@@ -1,0 +1,27 @@
+# Dedicated Postgres for the knape-leadgen cockpit + Milestone 2 data.
+#
+# The API runs on the host (systemd + venv), so Postgres is published on
+# 127.0.0.1 only — reachable by the host process, never exposed to the internet.
+# Bring up on the VPS with:
+#   docker compose -f deploy/postgres-compose.yml --env-file deploy/postgres.env up -d
+services:
+  leadgen-pg:
+    image: postgres:16-alpine
+    container_name: leadgen-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-leadgen}
+      POSTGRES_USER: ${POSTGRES_USER:-leadgen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5544:5432"
+    volumes:
+      - leadgen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-leadgen} -d ${POSTGRES_DB:-leadgen}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  leadgen_pgdata:

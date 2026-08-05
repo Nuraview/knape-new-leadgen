@@ -1,0 +1,1409 @@
+@import "tailwindcss";
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--foreground) !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+@font-face {
+  font-family: "Cal Sans UI";
+  src: url("./assets/fonts/CalSansUI[wght,GEOM]-s.p.c2e3469d.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 300 700;
+}
+
+@font-face {
+  font-family: "Cal Sans Heading";
+  src: url("./assets/fonts/CalSans-SemiBold.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: "Paper Mono";
+  src: url("./assets/fonts/PaperMono-Regular.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+/* Reduced motion: keep opacity feedback, drop movement (scale/translate) and
+   container morphs. Tailwind v4 scale/translate utilities use the standalone
+   CSS properties, so forcing them here neutralizes entrance/exit movement
+   while transition-property keeps the fade. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="popover-popup"],
+  [data-slot="select-popup"],
+  [data-slot="menu-popup"],
+  [data-slot="menu-sub-content"],
+  [data-slot="tooltip-popup"],
+  [data-slot="dialog-popup"],
+  [data-slot="alert-dialog-popup"],
+  [data-slot="command-dialog-popup"],
+  [data-slot="sheet-popup"],
+  [data-slot="toast-popup"] {
+    transition-property: opacity !important;
+  }
+
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-container"],
+  [data-slot="sidebar-group-content"],
+  [data-slot="sidebar-menu-badge"] {
+    transition: none !important;
+  }
+}
+
+
+@theme inline {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --animate-skeleton: skeleton 2s -1s infinite linear;
+  --font-sans: var(--font-sans);
+  --font-heading: var(--font-heading);
+  --font-mono: var(--font-mono);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning: var(--warning);
+  --color-success-foreground: var(--success-foreground);
+  --color-success: var(--success);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-input: var(--input);
+  --color-info-foreground: var(--info-foreground);
+  --color-info: var(--info);
+  --color-foreground: var(--foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive: var(--destructive);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-code-foreground: var(--code-foreground);
+  --color-code-highlight: var(--code-highlight);
+  --color-code: var(--code);
+  --color-border: var(--border);
+  --color-background: var(--background);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  @keyframes skeleton {
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+:root {
+  --font-sans:
+    "Cal Sans UI",
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  --font-heading: "Cal Sans Heading", var(--font-sans);
+  --font-mono:
+    "Paper Mono",
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+  --radius: 0.625rem;
+  --accent: --alpha(var(--color-black) / 4%);
+  --accent-foreground: var(--color-neutral-800);
+  /*
+   * The page is NOT white. Cards are.
+   *
+   * Every light surface used to be pure white — background, card, popover —
+   * with sidebar at neutral-50 and borders at 8% black. Nothing separated
+   * anything from anything, which is what "blinding white everywhere" is:
+   * not brightness, absence of contrast. The legacy CRM sits a card on a
+   * tinted page, so the card reads as an object.
+   *
+   * Warm stone rather than cool grey, matching the legacy palette.
+   */
+  --background: oklch(0.976 0.002 90);
+  --border: --alpha(var(--color-black) / 11%);
+  --card: var(--color-white);
+  --card-foreground: var(--color-neutral-800);
+  --destructive: var(--color-red-500);
+  --destructive-foreground: var(--color-red-700);
+  --foreground: var(--color-neutral-800);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-700);
+  --input: --alpha(var(--color-black) / 10%);
+  /* 4% was invisible against a white page; it is what made panels vanish. */
+  --muted: --alpha(var(--color-black) / 6%);
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-neutral-800);
+  --primary: var(--color-neutral-800);
+  --primary-foreground: var(--color-neutral-50);
+  --ring: var(--color-neutral-400);
+  --secondary: --alpha(var(--color-black) / 4%);
+  --secondary-foreground: var(--color-neutral-800);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-700);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-700);
+  --chart-1: var(--color-orange-600);
+  --chart-2: var(--color-teal-600);
+  --chart-3: var(--color-cyan-900);
+  --chart-4: var(--color-amber-400);
+  --chart-5: var(--color-amber-500);
+  /* A shade deeper than the page so the rail is its own surface. */
+  --sidebar: oklch(0.958 0.003 90);
+  --sidebar-foreground: color-mix(
+    in srgb,
+    var(--color-neutral-800) 64%,
+    var(--sidebar)
+  );
+  --sidebar-primary: var(--color-neutral-800);
+  --sidebar-primary-foreground: var(--color-neutral-50);
+  --sidebar-accent: --alpha(var(--color-black) / 4%);
+  --sidebar-accent-foreground: var(--color-neutral-800);
+  --sidebar-border: --alpha(var(--color-black) / 9%);
+  --sidebar-ring: var(--color-neutral-400);
+  --code: var(--color-white);
+  --code-foreground: var(--foreground);
+  --code-highlight: --alpha(var(--color-black) / 4%);
+}
+
+.dark {
+  --accent: --alpha(var(--color-white) / 4%);
+  --accent-foreground: var(--color-neutral-100);
+  --background: color-mix(
+    in srgb,
+    var(--color-neutral-950) 96%,
+    var(--color-white)
+  );
+  --border: --alpha(var(--color-white) / 6%);
+  --card: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --card-foreground: var(--color-neutral-100);
+  --destructive: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
+  --destructive-foreground: var(--color-red-400);
+  --foreground: var(--color-neutral-100);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-400);
+  --input: --alpha(var(--color-white) / 8%);
+  --muted: --alpha(var(--color-white) / 4%);
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-white));
+  --popover: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --popover-foreground: var(--color-neutral-100);
+  --primary: var(--color-neutral-100);
+  --primary-foreground: var(--color-neutral-800);
+  --ring: var(--color-neutral-500);
+  --secondary: --alpha(var(--color-white) / 4%);
+  --secondary-foreground: var(--color-neutral-100);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-400);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-400);
+  --chart-1: var(--color-blue-700);
+  --chart-2: var(--color-emerald-500);
+  --chart-3: var(--color-amber-500);
+  --chart-4: var(--color-purple-500);
+  --chart-5: var(--color-rose-500);
+  --sidebar: color-mix(
+    in srgb,
+    var(--color-neutral-950) 97%,
+    var(--color-white)
+  );
+  --sidebar-foreground: color-mix(
+    in srgb,
+    var(--color-neutral-100) 64%,
+    var(--sidebar)
+  );
+  --sidebar-primary: var(--color-neutral-100);
+  --sidebar-primary-foreground: var(--color-neutral-800);
+  --sidebar-accent: --alpha(var(--color-white) / 4%);
+  --sidebar-accent-foreground: var(--color-neutral-100);
+  --sidebar-border: --alpha(var(--color-white) / 5%);
+  --sidebar-ring: var(--color-neutral-400);
+  --code: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --code-foreground: var(--foreground);
+  --code-highlight: --alpha(var(--color-white) / 4%);
+}
+
+@layer base {
+  /*
+   * Global UI scale.
+   *
+   * The vendored app was tuned very dense — 11–13px text, 24–28px controls —
+   * which is uncomfortable on a CRM people read all day, and the Plane-style
+   * primitives made it denser still. Tailwind sizes in rem, so raising the
+   * root size scales type, spacing, padding and control heights together
+   * rather than requiring every component to be re-tuned by hand.
+   *
+   * 112.5% = 18px base (from 16px). Adjust here, not in components.
+   */
+  html {
+    font-size: 112.5%;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  /*
+   * Native <select> in dark mode.
+   *
+   * The dropdown LIST is painted by the browser using the control's own
+   * background-color and color — it is not part of the page's DOM and gets no
+   * inherited theme. Every select in this app is styled `bg-transparent` so
+   * the closed control blends into the panel, which left the open list with a
+   * white system background while the option text stayed near-white: the
+   * status, assignee and reminder-recipient menus were literally unreadable
+   * (only the hovered row, drawn with the system highlight, could be read).
+   *
+   * Setting the colours here rather than on each select: it is a property of
+   * the element, not of any one screen, and a new <select> anywhere in the app
+   * inherits the fix instead of reintroducing the bug.
+   *
+   * color-scheme (below) additionally tells the browser to paint every native
+   * widget — the select arrow, the date/time picker and its calendar popup,
+   * scrollbars — in dark chrome. It is bound to the app's OWN theme class, not
+   * to `light dark`: the theme here is a toggle, so deferring to the OS
+   * preference gets it backwards for anyone running a dark OS with the app in
+   * light mode, or the reverse.
+   */
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+  select {
+    color: var(--foreground);
+  }
+  select option,
+  select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading font-semibold tracking-tight;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  *::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+}
+
+@layer components {
+  .nuraview-tiptap-shell {
+    position: relative;
+  }
+
+  .nuraview-tiptap-shell:focus-within {
+    outline: none;
+  }
+
+  .nuraview-tiptap-shell.is-drag-active,
+  .nuraview-comment-editor-shell.is-drag-active {
+    z-index: 90;
+  }
+
+  .nuraview-editor-quick-attach {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.7rem;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--background) 82%, transparent);
+    color: color-mix(in srgb, var(--foreground) 76%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--background) 68%, transparent);
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  .nuraview-editor-quick-attach:hover {
+    border-color: color-mix(in srgb, var(--foreground) 18%, var(--border));
+    background: color-mix(in srgb, var(--accent) 72%, transparent);
+    color: var(--foreground);
+    transform: translateY(-1px);
+  }
+
+  .nuraview-editor-quick-attach:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--ring) 24%, transparent),
+      0 4px 16px color-mix(in srgb, var(--background) 68%, transparent);
+  }
+
+  .nuraview-tiptap-bubble {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1rem;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--popover);
+    padding: 0.2rem 0.24rem;
+    box-shadow:
+      0 8px 24px --alpha(var(--color-black) / 14%),
+      0 1px 2px --alpha(var(--color-black) / 9%);
+  }
+
+  .nuraview-tiptap-bubble-btn {
+    height: 1.6rem;
+    width: 1.6rem;
+    padding: 0;
+  }
+
+  .nuraview-tiptap-bubble-separator {
+    display: block;
+    width: 1px;
+    height: 1rem;
+    background: color-mix(in srgb, var(--border) 84%, transparent);
+    margin: 0 0.15rem;
+  }
+
+  .nuraview-codeblock-language {
+    position: fixed;
+    z-index: 40;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transform: translateX(-100%);
+  }
+
+  .nuraview-codeblock-language-trigger {
+    display: inline-flex;
+    max-width: 10rem;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--background) 90%, transparent);
+    padding: 0.2rem 0.5rem;
+    font-size: 0.828rem;
+    line-height: 1;
+    color: color-mix(in srgb, var(--foreground) 80%, transparent);
+    backdrop-filter: blur(8px);
+    transition:
+      border-color 0.12s ease,
+      color 0.12s ease,
+      background-color 0.12s ease;
+  }
+
+  .nuraview-codeblock-language-trigger:hover {
+    border-color: color-mix(in srgb, var(--ring) 42%, var(--border));
+    color: var(--foreground);
+    background: color-mix(in srgb, var(--background) 96%, transparent);
+  }
+
+  .nuraview-codeblock-copy-trigger {
+    min-width: 4.6rem;
+    justify-content: center;
+  }
+
+  .nuraview-codeblock-copy-trigger > span {
+    line-height: 1;
+  }
+
+  .nuraview-tiptap-content .ProseMirror {
+    min-height: 1.85rem;
+    padding: 0.2rem 0 2.9rem;
+    font-family: var(--font-sans);
+    font-size: 1.11rem;
+    line-height: 1.72;
+    white-space: pre-wrap;
+    color: var(--foreground);
+    caret-color: var(--foreground);
+    outline: none;
+  }
+
+  .nuraview-tiptap-slash-menu {
+    position: fixed;
+    z-index: 50;
+    min-width: 16rem;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 0.5rem;
+    background: var(--popover);
+    padding: 0.32rem;
+    box-shadow:
+      0 10px 28px --alpha(var(--color-black) / 18%),
+      0 1px 2px --alpha(var(--color-black) / 10%);
+  }
+
+  .nuraview-tiptap-slash-group + .nuraview-tiptap-slash-group {
+    margin-top: 0.2rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    padding-top: 0.2rem;
+  }
+
+  .nuraview-tiptap-slash-group-title {
+    padding: 0.22rem 0.42rem 0.3rem;
+    font-size: 0.782rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--foreground) 48%, transparent);
+  }
+
+  .nuraview-tiptap-slash-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    border-radius: 0.35rem;
+    padding: 0.4rem 0.45rem;
+    text-align: left;
+    font-size: 0.908rem;
+    color: color-mix(in srgb, var(--foreground) 88%, transparent);
+  }
+
+  .nuraview-tiptap-slash-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nuraview-tiptap-slash-shortcut {
+    flex-shrink: 0;
+    font-size: 0.782rem;
+    color: color-mix(in srgb, var(--foreground) 52%, transparent);
+  }
+
+  .nuraview-tiptap-slash-item:hover,
+  .nuraview-tiptap-slash-item.is-selected {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .nuraview-mention {
+    display: inline-flex;
+    align-items: baseline;
+    border-radius: 0.3rem;
+    padding: 0 0.2rem;
+    font-weight: 500;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    white-space: nowrap;
+  }
+
+  .nuraview-mention-popup {
+    position: absolute;
+    z-index: 50;
+  }
+
+  .nuraview-mention-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 12rem;
+    max-height: 16rem;
+    overflow-y: auto;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 0.5rem;
+    background: var(--popover);
+    padding: 0.32rem;
+    box-shadow:
+      0 10px 28px --alpha(var(--color-black) / 18%),
+      0 1px 2px --alpha(var(--color-black) / 10%);
+  }
+
+  .nuraview-mention-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    border-radius: 0.35rem;
+    padding: 0.32rem 0.42rem;
+    text-align: left;
+    font-size: 0.908rem;
+    color: color-mix(in srgb, var(--foreground) 88%, transparent);
+  }
+
+  .nuraview-mention-item:hover,
+  .nuraview-mention-item.is-active {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .nuraview-tiptap-slash-empty {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.874rem;
+    color: color-mix(in srgb, var(--foreground) 56%, transparent);
+  }
+
+  .nuraview-tiptap-content .ProseMirror p {
+    margin: 0.2rem 0;
+  }
+
+  .nuraview-tiptap-content .ProseMirror h1,
+  .nuraview-tiptap-content .ProseMirror h2,
+  .nuraview-tiptap-content .ProseMirror h3 {
+    margin: 1.05rem 0 0.45rem;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.26;
+    color: var(--foreground);
+  }
+
+  .nuraview-tiptap-content .ProseMirror h1 {
+    font-size: 1.43rem;
+  }
+
+  .nuraview-tiptap-content .ProseMirror h2 {
+    font-size: 1.29rem;
+  }
+
+  .nuraview-tiptap-content .ProseMirror h3 {
+    font-size: 1.17rem;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ul,
+  .nuraview-tiptap-content .ProseMirror ol {
+    margin: 0.3rem 0;
+    padding-inline-start: 1.35rem;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ul {
+    list-style-type: disc;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ol {
+    list-style-type: decimal;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ul ul {
+    list-style-type: circle;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ul ul ul {
+    list-style-type: square;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ol ol {
+    list-style-type: lower-alpha;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li::marker {
+    color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  }
+
+  .nuraview-tiptap-content .ProseMirror li {
+    margin: 0.1rem 0;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ul[data-type="taskList"] {
+    list-style: none;
+    margin: 0.3rem 0;
+    padding-inline-start: 0;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    margin: 0.18rem 0;
+    text-align: left;
+  }
+
+  .nuraview-tiptap-content
+    .ProseMirror
+    li[data-type="taskItem"]
+    > :is(label, .nuraview-task-item-checkbox) {
+    margin-top: 0.15rem;
+    display: inline-flex;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"] > div {
+    flex: 0 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"] > div > * {
+    margin-inline: 0;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"] ul,
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"] ol {
+    margin-top: 0.2rem;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"] [data-slot="checkbox"] {
+    margin-top: 0;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"] > div p {
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  .nuraview-tiptap-content .ProseMirror li[data-type="taskItem"][data-checked="true"] > div p {
+    color: color-mix(in srgb, var(--foreground) 62%, transparent);
+    text-decoration: line-through;
+  }
+
+  .nuraview-tiptap-content .ProseMirror a {
+    color: var(--primary);
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(
+      in srgb,
+      var(--primary) 68%,
+      transparent
+    );
+    transition:
+      color 0.12s ease,
+      text-decoration-color 0.12s ease;
+  }
+
+  .nuraview-tiptap-content .ProseMirror a:hover {
+    color: color-mix(in srgb, var(--primary) 84%, var(--foreground));
+    text-decoration-color: currentColor;
+  }
+
+  .nuraview-tiptap-content .ProseMirror :not(pre) > code {
+    border: 1px solid var(--border);
+    border-radius: 0.34rem;
+    background: var(--code-highlight);
+    font-family: var(--font-mono);
+    font-size: 0.84em;
+    padding: 0.11rem 0.32rem;
+  }
+
+  .nuraview-tiptap-content .ProseMirror pre {
+    margin: 0.45rem 0;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 3px);
+    background: var(--code);
+    padding: 0.75rem 0.9rem;
+  }
+
+  .nuraview-tiptap-content .ProseMirror pre code {
+    font-family: var(--font-mono);
+    font-size: 0.977rem;
+    color: var(--code-foreground);
+  }
+
+  .nuraview-tiptap-content .ProseMirror blockquote {
+    margin: 0.5rem 0;
+    border-left: 2px solid var(--border);
+    padding-left: 0.75rem;
+    color: color-mix(in srgb, var(--foreground) 78%, transparent);
+  }
+
+  .nuraview-tiptap-content .ProseMirror img.nuraview-editor-image,
+  .nuraview-comment-editor-prose img.nuraview-editor-image {
+    display: block;
+    max-width: min(100%, 44rem);
+    width: auto;
+    height: auto;
+    margin: 0.75rem 0;
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    border-radius: calc(var(--radius) - 2px);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    object-fit: contain;
+    overflow: hidden;
+  }
+
+  .nuraview-create-task-modal .nuraview-comment-editor-prose img.nuraview-editor-image {
+    max-height: min(50vh, 28rem);
+    width: 100%;
+  }
+
+  .nuraview-tiptap-content .ProseMirror .is-editor-empty:first-child::before {
+    pointer-events: none;
+    content: attr(data-placeholder);
+    height: 0;
+    float: left;
+    color: color-mix(in srgb, var(--foreground) 40%, transparent);
+  }
+
+  .nuraview-tiptap-content .ProseMirror table {
+    border-collapse: collapse;
+    margin: 0.7rem 0;
+    overflow: hidden;
+    table-layout: fixed;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 3px);
+  }
+
+  .nuraview-tiptap-content .ProseMirror table td,
+  .nuraview-tiptap-content .ProseMirror table th {
+    min-width: 1em;
+    border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    padding: 0.45rem 0.55rem;
+    vertical-align: top;
+  }
+
+  .nuraview-tiptap-content .ProseMirror table th {
+    background: color-mix(in srgb, var(--accent) 70%, transparent);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .nuraview-tiptap-content .ProseMirror .selectedCell:after {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    content: "";
+    background: color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+
+  .nuraview-tiptap-content .ProseMirror .tableWrapper {
+    overflow-x: auto;
+  }
+
+  .nuraview-tiptap-content .ProseMirror [data-type="nuraview-embed"] {
+    margin: 0.65rem 0;
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    border-radius: calc(var(--radius) - 2px);
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    overflow: hidden;
+    transition:
+      border-color 0.12s ease,
+      box-shadow 0.12s ease;
+  }
+
+  .nuraview-tiptap-content .ProseMirror [data-type="nuraview-embed"] iframe {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+    display: block;
+    background: black;
+  }
+
+  .nuraview-tiptap-content .ProseMirror [data-type="nuraview-embed"] > a {
+    display: block;
+    padding: 0.6rem 0.7rem;
+    color: var(--foreground);
+    text-decoration: none;
+    font-size: 0.943rem;
+    word-break: break-word;
+  }
+
+  .nuraview-tiptap-content .ProseMirror
+    [data-type="nuraview-embed"].ProseMirror-selectednode {
+    border-color: color-mix(in srgb, var(--ring) 82%, var(--border));
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--ring) 38%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--ring) 70%, transparent) inset;
+  }
+
+  .nuraview-tiptap-content .ProseMirror [data-type="nuraview-embed"] .nuraview-embed-unsupported {
+    padding: 0.62rem 0.72rem;
+    font-size: 0.897rem;
+    color: color-mix(in srgb, var(--foreground) 62%, transparent);
+  }
+
+  .nuraview-issue-link-node {
+    display: inline-flex;
+    vertical-align: baseline;
+  }
+
+  .nuraview-issue-link-chip {
+    display: inline-flex;
+    max-width: min(26rem, 85vw);
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    padding: 0.12rem 0.42rem;
+    color: var(--foreground);
+    text-decoration: none;
+    line-height: 1.3;
+    transform: translateY(-0.02rem);
+  }
+
+  .nuraview-issue-link-chip:hover {
+    border-color: color-mix(in srgb, var(--ring) 56%, var(--border));
+    background: color-mix(in srgb, var(--accent) 34%, transparent);
+  }
+
+  .nuraview-issue-link-key {
+    flex-shrink: 0;
+    font-size: 0.874rem;
+    font-weight: 500;
+    color: color-mix(in srgb, var(--foreground) 64%, transparent);
+  }
+
+  .nuraview-issue-link-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.989rem;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  .nuraview-issue-link-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: min(21rem, calc(100vw - 1.5rem));
+    padding: 0.72rem;
+    text-wrap: pretty;
+  }
+
+  .nuraview-issue-link-preview-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    font-size: 0.862rem;
+    color: color-mix(in srgb, var(--foreground) 68%, transparent);
+  }
+
+  .nuraview-issue-link-preview-key {
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .nuraview-issue-link-preview-title {
+    margin-top: 0.45rem;
+    font-size: 1.03rem;
+    line-height: 1.35;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  .nuraview-issue-link-preview-meta {
+    margin-top: 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    padding-top: 0.45rem;
+    font-size: 0.874rem;
+    color: color-mix(in srgb, var(--foreground) 72%, transparent);
+  }
+
+  .nuraview-attachment-node {
+    display: inline-flex;
+    max-width: 100%;
+    vertical-align: middle;
+    margin: 0.35rem 0;
+  }
+
+  .nuraview-attachment-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: min(22rem, 100%);
+    max-width: min(28rem, 100%);
+    padding: 0.75rem 0.95rem;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: calc(var(--radius) + 1px);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 48%, transparent),
+      color-mix(in srgb, var(--accent) 20%, transparent)
+    );
+    text-decoration: none;
+    transition:
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  .nuraview-attachment-card:hover {
+    border-color: color-mix(in srgb, var(--foreground) 18%, var(--border));
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 62%, transparent),
+      color-mix(in srgb, var(--accent) 30%, transparent)
+    );
+    transform: translateY(-1px);
+  }
+
+  .nuraview-attachment-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    color: color-mix(in srgb, var(--foreground) 72%, transparent);
+    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+    border-radius: 0.55rem;
+    flex-shrink: 0;
+  }
+
+  .nuraview-attachment-card-content {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  .nuraview-attachment-card-title {
+    color: var(--foreground);
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nuraview-attachment-card-meta {
+    margin-top: 0.18rem;
+    color: color-mix(in srgb, var(--foreground) 58%, transparent);
+    font-size: 0.874rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nuraview-tiptap-content .ProseMirror [data-type="nuraview-embed"]:focus-within {
+    border-color: color-mix(in srgb, var(--ring) 80%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 34%, transparent);
+  }
+
+  .nuraview-embed-composer {
+    position: fixed;
+    z-index: 60;
+    width: min(16.5rem, calc(100vw - 2rem));
+    border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    border-radius: 0.6rem;
+    background: var(--popover);
+    padding: 0.5rem;
+    box-shadow:
+      0 12px 32px --alpha(var(--color-black) / 20%),
+      0 1px 2px --alpha(var(--color-black) / 10%);
+  }
+
+  .nuraview-embed-composer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .nuraview-embed-choice-menu {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .nuraview-embed-choice-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    border-radius: 0.4rem;
+    padding: 0.38rem 0.45rem;
+    text-align: left;
+    font-size: 0.943rem;
+    color: color-mix(in srgb, var(--foreground) 90%, transparent);
+  }
+
+  .nuraview-embed-choice-item:hover,
+  .nuraview-embed-choice-item.is-primary {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .nuraview-embed-choice-hint {
+    flex-shrink: 0;
+    font-size: 0.782rem;
+    color: color-mix(in srgb, currentColor 62%, transparent);
+  }
+
+  .nuraview-embed-composer-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    justify-content: flex-end;
+  }
+
+  .nuraview-embed-composer-error {
+    font-size: 0.828rem;
+    color: var(--destructive);
+  }
+
+  .nuraview-comment-composer {
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 0.62rem;
+    background: color-mix(in srgb, var(--background) 96%, transparent);
+    transition:
+      border-color 0.14s ease,
+      box-shadow 0.14s ease;
+  }
+
+  .nuraview-comment-composer:focus-within {
+    border-color: color-mix(in srgb, var(--ring) 64%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 20%, transparent);
+  }
+
+  .nuraview-comment-card-body {
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 0.6rem;
+    background: color-mix(in srgb, var(--card) 82%, transparent);
+    backdrop-filter: blur(3px);
+    position: relative;
+  }
+
+  .nuraview-comment-editor-shell {
+    position: relative;
+    isolation: isolate;
+    z-index: 1;
+  }
+
+  .nuraview-comment-editor-shell:focus-within {
+    z-index: 80;
+  }
+
+  .nuraview-editor-drop-indicator {
+    pointer-events: none;
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 0.75rem;
+    height: 2px;
+    z-index: 85;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ring) 78%, var(--primary));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--background) 88%, transparent);
+  }
+
+  .nuraview-editor-drop-indicator span {
+    display: none;
+  }
+
+  .nuraview-comment-editor-shell-readonly {
+    pointer-events: auto;
+  }
+
+  .nuraview-comment-editor-content .ProseMirror {
+    min-height: 2.2rem;
+    max-height: 18rem;
+    overflow-y: auto;
+    padding: 0.62rem 0.75rem 2.9rem;
+    font-family: var(--font-sans);
+    font-size: 1.06rem;
+    line-height: 1.62;
+    white-space: pre-wrap;
+    color: var(--foreground);
+    caret-color: var(--foreground);
+    outline: none;
+  }
+
+  .nuraview-comment-editor-shell-readonly .nuraview-comment-editor-content .ProseMirror {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    padding: 0.62rem 0.75rem;
+  }
+
+  .nuraview-comment-viewer .nuraview-comment-editor-content .ProseMirror {
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 0.8rem;
+  }
+
+  .nuraview-comment-editor-prose p {
+    margin: 0;
+  }
+
+  .nuraview-comment-editor-prose h1,
+  .nuraview-comment-editor-prose h2,
+  .nuraview-comment-editor-prose h3 {
+    margin: 0.12rem 0 0;
+    line-height: 1.32;
+  }
+
+  .nuraview-comment-editor-prose ul,
+  .nuraview-comment-editor-prose ol {
+    margin: 0.12rem 0 0;
+    padding-inline-start: 1.2rem;
+  }
+
+  .nuraview-comment-editor-prose ul {
+    list-style-type: disc;
+  }
+
+  .nuraview-comment-editor-prose ol {
+    list-style-type: decimal;
+  }
+
+  .nuraview-comment-editor-prose ul ul {
+    list-style-type: circle;
+  }
+
+  .nuraview-comment-editor-prose ul ul ul {
+    list-style-type: square;
+  }
+
+  .nuraview-comment-editor-prose ol ol {
+    list-style-type: lower-alpha;
+  }
+
+  .nuraview-comment-editor-prose li::marker {
+    color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  }
+
+  .nuraview-comment-editor-prose li {
+    margin: 0.08rem 0;
+  }
+
+  .nuraview-comment-editor-prose ul[data-type="taskList"] {
+    list-style: none;
+    margin: 0.12rem 0 0;
+    padding-inline-start: 0;
+  }
+
+  .nuraview-comment-editor-prose li[data-type="taskItem"] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    margin: 0.14rem 0;
+    text-align: left;
+  }
+
+  .nuraview-comment-editor-prose
+    li[data-type="taskItem"]
+    > :is(label, .nuraview-task-item-checkbox) {
+    margin-top: 0.15rem;
+    display: inline-flex;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .nuraview-comment-editor-prose li[data-type="taskItem"] > div {
+    flex: 0 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .nuraview-comment-editor-prose li[data-type="taskItem"] > div > * {
+    margin-inline: 0;
+  }
+
+  .nuraview-comment-editor-prose li[data-type="taskItem"] ul,
+  .nuraview-comment-editor-prose li[data-type="taskItem"] ol {
+    margin-top: 0.16rem;
+  }
+
+  .nuraview-comment-editor-prose li[data-type="taskItem"] [data-slot="checkbox"] {
+    margin-top: 0;
+  }
+
+  .nuraview-comment-editor-prose li[data-type="taskItem"] > div p {
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  .nuraview-comment-editor-prose li[data-type="taskItem"][data-checked="true"] > div p {
+    color: color-mix(in srgb, var(--foreground) 62%, transparent);
+    text-decoration: line-through;
+  }
+
+  .nuraview-comment-editor-prose a,
+  .nuraview-tiptap-prose a {
+    color: color-mix(in srgb, var(--foreground) 88%, #4c9aff 12%);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--ring) 44%, transparent);
+    text-underline-offset: 2px;
+  }
+
+  .nuraview-comment-editor-prose :not(pre) > code {
+    border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+    border-radius: 0.34rem;
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+    padding: 0.08rem 0.36rem;
+    font-size: 0.79em;
+    font-family: var(--font-mono);
+  }
+
+  .nuraview-comment-editor-prose pre {
+    margin: 0.12rem 0 0;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--card) 80%, transparent);
+    padding: 0.55rem 0.7rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.943rem;
+    line-height: 1.55;
+  }
+
+  .nuraview-comment-editor-prose [data-type="nuraview-embed"] {
+    margin: 0.12rem 0 0;
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    border-radius: calc(var(--radius) - 2px);
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    overflow: hidden;
+    transition:
+      border-color 0.12s ease,
+      box-shadow 0.12s ease;
+  }
+
+  .nuraview-comment-editor-prose [data-type="nuraview-embed"] iframe {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+    display: block;
+    background: black;
+  }
+
+  .nuraview-comment-editor-prose [data-type="nuraview-embed"] > a {
+    display: block;
+    padding: 0.6rem 0.7rem;
+    color: var(--foreground);
+    text-decoration: none;
+    font-size: 0.943rem;
+    word-break: break-word;
+  }
+
+  .nuraview-comment-editor-prose
+    [data-type="nuraview-embed"].ProseMirror-selectednode {
+    border-color: color-mix(in srgb, var(--ring) 82%, var(--border));
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--ring) 38%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--ring) 70%, transparent) inset;
+  }
+
+  .nuraview-comment-editor-prose [data-type="nuraview-embed"]:focus-within {
+    border-color: color-mix(in srgb, var(--ring) 80%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 34%, transparent);
+  }
+
+  .nuraview-comment-editor-prose table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 0.12rem 0 0;
+    border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+    border-radius: 0.45rem;
+    overflow: hidden;
+  }
+
+  .nuraview-comment-editor-prose table td,
+  .nuraview-comment-editor-prose table th {
+    min-width: 1em;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    padding: 0.4rem 0.5rem;
+    vertical-align: top;
+  }
+
+  .nuraview-comment-editor-prose table th {
+    background: color-mix(in srgb, var(--accent) 65%, transparent);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .nuraview-comment-editor-prose .tableWrapper {
+    overflow-x: auto;
+  }
+
+  .nuraview-comment-editor-prose .is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: color-mix(in srgb, var(--foreground) 42%, transparent);
+    pointer-events: none;
+    float: left;
+    height: 0;
+  }
+
+  .nuraview-comment-editor-prose p > .ProseMirror-trailingBreak {
+    line-height: 1;
+  }
+
+  .nuraview-comment-editor-bubble {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.12rem;
+    border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+    border-radius: 0.45rem;
+    background: var(--popover);
+    padding: 0.2rem 0.24rem;
+    box-shadow:
+      0 8px 24px --alpha(var(--color-black) / 14%),
+      0 1px 2px --alpha(var(--color-black) / 9%);
+  }
+
+  .nuraview-comment-editor-bubble-btn {
+    height: 1.58rem;
+    width: 1.58rem;
+    padding: 0;
+  }
+
+  .nuraview-comment-editor-shell .nuraview-tiptap-slash-menu {
+    position: absolute;
+    z-index: 120;
+    opacity: 1;
+    background-color: var(--popover);
+    background-image: none;
+    backdrop-filter: none;
+  }
+
+  .nuraview-tiptap-content .ProseMirror ::selection {
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+
+}
