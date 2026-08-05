@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { fetchMyAccess, landingPathFor } from "@/lib/landing-path";
 import { Bell, Building2, Inbox, LayoutGrid, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Layout from "@/components/common/layout";
 import { LeadDetailPanel } from "@/components/lead/lead-detail-panel";
 import { LeadRow, LeadRowSkeleton } from "@/components/lead/lead-row";
@@ -36,6 +36,93 @@ import { setLeadHighlighted } from "@/fetchers/lead/mutate-lead";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { Loader2 } from "lucide-react";
+
+function LeadsPager({
+  page,
+  pages,
+  total,
+  pageSize,
+  onPage,
+  busy,
+}: {
+  page: number;
+  pages: number;
+  total: number;
+  pageSize: number;
+  onPage: (p: number) => void;
+  busy?: boolean;
+}) {
+  if (total === 0) return null;
+
+  const first = (page - 1) * pageSize + 1;
+  const last = Math.min(total, page * pageSize);
+
+  const pageWindow = () => {
+    if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+    const out: (number | null)[] = [1];
+    const from = Math.max(2, page - 1);
+    const to = Math.min(pages - 1, page + 1);
+    if (from > 2) out.push(null);
+    for (let p = from; p <= to; p++) out.push(p);
+    if (to < pages - 1) out.push(null);
+    out.push(pages);
+    return out;
+  };
+
+  return (
+    <nav className="flex items-center justify-between border-b border-border/50 bg-card px-4 py-2">
+      <p className="text-xs text-muted-foreground">
+        Showing <strong className="text-foreground">{first.toLocaleString()}–{last.toLocaleString()}</strong> of{" "}
+        <strong className="text-foreground">{total.toLocaleString()}</strong> leads
+        {pages > 1 && ` · page ${page} of ${pages}`}
+      </p>
+
+      {pages > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="rounded px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            onClick={() => onPage(page - 1)}
+            disabled={busy || page <= 1}
+          >
+            ← Prev
+          </button>
+          
+          <div className="flex items-center gap-0.5">
+            {pageWindow().map((p, i) =>
+              p === null ? (
+                <span key={`gap-${i}`} className="px-1 text-xs text-muted-foreground">…</span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded text-xs font-medium hover:bg-accent",
+                    p === page && "bg-info/10 text-info"
+                  )}
+                  onClick={() => onPage(p)}
+                  disabled={busy || p === page}
+                >
+                  {p}
+                </button>
+              )
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="rounded px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            onClick={() => onPage(page + 1)}
+            disabled={busy || page >= pages}
+          >
+            Next →
+          </button>
+        </div>
+      )}
+    </nav>
+  );
+}
 
 /**
  * A filter that is ON has to be visible from across the room — the old bar
@@ -122,6 +209,13 @@ function LeadsList() {
   // fire a request per keystroke and re-render the whole table under the caret.
   const debouncedQ = useDebouncedValue(q);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 500;
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [view, companiesOnly, highlighted, clientInfo, remindersOnly, debouncedQ]);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
@@ -136,7 +230,8 @@ function LeadsList() {
         clientInfo,
         remindersOnly,
         q: debouncedQ || undefined,
-        limit: 50,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
       }),
     // The legacy list auto-polls every 30s so the count ticks up while the
     // scraper runs; keeping that means nobody has to hit refresh.
@@ -307,15 +402,22 @@ function LeadsList() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="relative min-h-0 flex-1 overflow-y-auto">
           {isLoading && (
-            <div className="animate-pulse divide-y divide-border/50">
-              {Array.from({ length: 12 }).map((_, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-                <LeadRowSkeleton key={i} />
-              ))}
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-card/60 backdrop-blur-sm">
+              <Loader2 className="size-8 animate-spin text-info" />
+              <p className="mt-2 text-sm font-medium text-foreground">Loading leads...</p>
             </div>
           )}
+
+          <LeadsPager
+            page={page}
+            pages={Math.ceil((data?.total ?? 0) / pageSize)}
+            total={data?.total ?? 0}
+            pageSize={pageSize}
+            onPage={setPage}
+            busy={isLoading}
+          />
 
           {/* Day groups. 50 rows of "Jul 29, 07:12 PM" in the right gutter is
               not a timeline anyone reads; a sticky day header is. */}
@@ -358,6 +460,15 @@ function LeadsList() {
               </p>
             </div>
           )}
+          
+          <LeadsPager
+            page={page}
+            pages={Math.ceil((data?.total ?? 0) / pageSize)}
+            total={data?.total ?? 0}
+            pageSize={pageSize}
+            onPage={setPage}
+            busy={isLoading}
+          />
         </div>
       </section>
 
