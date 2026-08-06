@@ -1,16 +1,15 @@
 /**
- * Leads — Dan's actual pipeline, from the lead-gen cockpit.
+ * Leads — the client's actual pipeline, from the lead-gen cockpit.
  *
  * The other Leads page in this app reads `crm_Leads`, which is NuraView's
- * Upwork table. On a client instance that table is empty, so the page renders
- * "0 leads" while the real pipeline — 1333 accounts and 1633 contacts sourced
- * from the NCES school universe joined against USAspending grant data — sits in
- * the cockpit, unreachable. This is that pipeline.
+ * Upwork table. On a client instance that table does not even exist, so the
+ * page 500s while the real pipeline — 5,889 accounts and 2,245 contacts —
+ * sits in the cockpit, unreachable. This is that pipeline.
  *
  * Ported from the cockpit's Leads view, keeping the parts that carry meaning:
  *
- *   - the ACCOUNTS / PEOPLE toggle, because a school and a named Athletic
- *     Director are two different things to act on.
+ *   - the ACCOUNTS / PEOPLE toggle, because a manufacturer and a named plant
+ *     engineer are two different things to act on.
  *   - the ICP score, which is the whole reason a row is in the list.
  *   - the scrape-date chips (Today / Yesterday / Day before / Full list). VK,
  *     2026-08-03: "Full list should show today, yesterday, should have day
@@ -48,6 +47,9 @@ import { buildDayChips } from "@/lib/leadgen/day-batches";
  */
 const PAGE_SIZE = 500;
 
+/** Cockpit `email_filter`: on a usable address, not on a contact row existing. */
+type EmailFilter = "any" | "has" | "none";
+
 function scoreTone(score: number | undefined): string {
   const s = score ?? 0;
   if (s >= 8) return "bg-emerald-500/15 text-emerald-500";
@@ -59,6 +61,7 @@ function RouteComponent() {
   const [mode, setMode] = useState<"accounts" | "people">("accounts");
   const [batch, setBatch] = useState("");
   const [q, setQ] = useState("");
+  const [emailFilter, setEmailFilter] = useState<EmailFilter>("any");
   /*
    * Paging is SERVER-side: the cockpit slices and answers
    * { mode, items, total, page, page_size, pages }. This used to cap the render
@@ -86,12 +89,13 @@ function RouteComponent() {
   const list = useQuery({
     // `page` is part of the key: each page is its own request and its own
     // cache entry, so paging back is instant and does not refetch.
-    queryKey: ["leadgen", "accounts", mode, batch, q, page],
+    queryKey: ["leadgen", "accounts", mode, batch, q, emailFilter, page],
     queryFn: () =>
       leadgen.get<AccountsResponse>("/api/accounts", {
         mode,
         data_batch: batch,
         q,
+        email_filter: emailFilter,
         page: String(page),
         page_size: String(PAGE_SIZE),
       }),
@@ -231,6 +235,29 @@ function RouteComponent() {
             ))}
           </div>
 
+          {/*
+            Email filter.
+
+            Filters on a usable ADDRESS, not on a contact row existing — the
+            cockpit's `email_filter`, which is a different question from its
+            older `contact_filter`. A contact can be a name and a job title with
+            no address, and outreach cannot send to that. "Has an email" is the
+            list you work from when picking who to write to.
+          */}
+          <select
+            value={emailFilter}
+            onChange={(e) => {
+              setEmailFilter(e.target.value as EmailFilter);
+              setPage(1);
+            }}
+            aria-label="Filter by email address"
+            className="ms-auto h-9 rounded-md border border-border bg-background px-2 text-sm"
+          >
+            <option value="any">All leads</option>
+            <option value="has">Has an email</option>
+            <option value="none">No email yet</option>
+          </select>
+
           <input
             value={q}
             onChange={(e) => {
@@ -238,7 +265,7 @@ function RouteComponent() {
               setPage(1);
             }}
             placeholder="Search leads…"
-            className="ms-auto h-9 w-64 rounded-md border border-border bg-background px-3 text-sm"
+            className="h-9 w-64 rounded-md border border-border bg-background px-3 text-sm"
           />
         </div>
 
@@ -315,7 +342,7 @@ function RouteComponent() {
                     {(items as Person[]).map((p) => (
                       <tr key={p.id} className="border-t border-border">
                         {/*
-                          A person row that cannot reach its school is a dead end:
+                          A person row that cannot reach its company is a dead end:
                           the name, title and address are here, and everything
                           else about the lead is one page away with no route to it.
                         */}
@@ -391,14 +418,14 @@ function RouteComponent() {
                       ) : null}
                       {a.headcount ? (
                         <span className="text-xs text-muted-foreground">
-                          {a.headcount} students
+                          {a.headcount} employees
                         </span>
                       ) : null}
                       {/*
                         A button, not a nested anchor. An <a> inside an <a> is
                         invalid HTML and browsers resolve it inconsistently — the
                         card navigation would fire alongside the outward link, so
-                        clicking "website" could open the school AND leave the
+                        clicking "website" could open the company AND leave the
                         list at the same time.
                       */}
                       {a.website ? (

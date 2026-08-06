@@ -200,7 +200,7 @@ function RouteComponent() {
               */}
               <Headline
                 value={w?.sent ?? 0}
-                label="New schools emailed"
+                label="New companies emailed"
                 sub={`last 7 days · ${(w?.followups ?? 0).toLocaleString()} follow-ups on top`}
               />
               <Headline
@@ -226,7 +226,7 @@ function RouteComponent() {
 
           {/*
             Named people. This is the section Dan will actually use: he closes
-            deals on the phone, so a school that opened three times is a call to
+            deals on the phone, so a company that opened three times is a call to
             make, not a number to admire.
           */}
           <section className="rounded-xl border border-border bg-card">
@@ -403,8 +403,8 @@ function RouteComponent() {
                 />
               )}
               <p className="mt-2 text-xs text-muted-foreground">
-                Ten versions rotate across schools, each with its own follow-up
-                sequence. Every school is written to by name.
+                Ten versions rotate across companies, each with its own follow-up
+                sequence. Every company is written to by name.
                 {preview.data?.live_variant ? (
                   <>
                     {" "}Currently sending{" "}

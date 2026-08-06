@@ -114,7 +114,7 @@ export function StepSchedule({
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Follow-ups are scheduled when the opener goes out and stop
-          automatically if the school replies or the address bounces.
+          automatically if the company replies or the address bounces.
         </p>
       </div>
 

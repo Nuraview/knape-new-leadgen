@@ -223,7 +223,7 @@ function RouteComponent() {
                   ) : null}
                   {a.headcount ? (
                     <span className="text-muted-foreground">
-                      {a.headcount} students
+                      {a.headcount} employees
                     </span>
                   ) : null}
                   {a.website ? (
@@ -412,7 +412,7 @@ function RouteComponent() {
 
                 {/*
                   Recipient and mailbox, editable rather than reported.
-                  A school with three contacts and a mailbox at its daily cap
+                  A company with three contacts and a mailbox at its daily cap
                   are both normal, and neither was changeable from here — the
                   line just stated whatever the cockpit had already decided.
                 */}

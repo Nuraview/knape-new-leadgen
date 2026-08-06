@@ -124,7 +124,7 @@ export function DoThisNow() {
 
       {nothingToDo ? (
         <p className="px-4 py-4 text-sm text-muted-foreground">
-          Nothing needs you right now. As soon as a school opens or clicks an
+          Nothing needs you right now. As soon as a company opens or clicks an
           email, it will appear here.
         </p>
       ) : (
@@ -143,7 +143,7 @@ export function DoThisNow() {
             <Task
               icon={<PhoneCall className="size-4" />}
               count={warm}
-              headline="schools clicked your email and haven't replied"
+              headline="companies clicked your email and haven't replied"
               action="Warmest list you have. Call them or send a personal note."
               to="/home"
               search={{ focus: "clicked" }}
@@ -182,7 +182,7 @@ export function DoThisNow() {
       <div className="flex flex-wrap items-center gap-2 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
         <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500" />
         <span>
-          Finding schools, writing the emails, sending and following up all run
+          Finding companies, writing the emails, sending and following up all run
           automatically.
         </span>
         <span className="ms-auto">

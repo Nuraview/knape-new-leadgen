@@ -101,7 +101,7 @@ export function ScheduledPane() {
           {summary?.sequences ?? "—"}
         </strong>{" "}
         leads, over the next 30 days. They send automatically and stop early if
-        the school replies or the address bounces.
+        the company replies or the address bounces.
       </p>
 
       {[...groups.entries()].map(([key, steps]) => (

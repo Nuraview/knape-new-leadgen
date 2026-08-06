@@ -64,7 +64,7 @@ export function StepMessage({
         <p className="mt-1 text-sm text-muted-foreground">
           Ten angles, each with its own opener, follow-up ladder and designed
           creative. Previewed against a sample lead — the real ones are
-          personalised per school.
+          personalised per company.
         </p>
       </div>
 
@@ -84,7 +84,7 @@ export function StepMessage({
             >
               <div className="font-medium">Auto-rotate all ten</div>
               <div className="text-xs text-muted-foreground">
-                Each school gets the angle that suits it, chosen the same way
+                Each company gets the angle that suits it, chosen the same way
                 every time so results stay attributable. Recommended.
               </div>
             </button>

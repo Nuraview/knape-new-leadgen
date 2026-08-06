@@ -19,7 +19,7 @@
 
 /** Internal stage → what it is actually doing. */
 const STAGE_LABELS: Record<string, string> = {
-  scrape: "Finding new schools",
+  scrape: "Finding new companies",
   score: "Ranking by fit",
   filter: "Filtering out poor matches",
   save: "Saving to your lead list",
@@ -56,7 +56,6 @@ const REWRITES: [RegExp, string][] = [
   [/\bmilestone\s*2\b/gi, "outreach"],
   [/\bICP\s*[≥>=]+\s*\d+(\.\d+)?/gi, "a good fit"],
   [/\bICP\b/gi, "fit"],
-  [/\bunique companies\b/gi, "schools"],
   [/\braw rows fetched\b/gi, "Found"],
   [/\bLinkedIn profiles:\s*0 rows/gi, "No LinkedIn results"],
   [/\bleads?\b(?=\s*→)/gi, "leads"],

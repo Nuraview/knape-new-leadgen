@@ -247,9 +247,17 @@ def _account_table_where_clauses(
     has_reminder: bool = False,
     equipment_tag: str | None = None,
     data_batch: str | None = None,
+    email_filter: str = "any",
 ) -> tuple[list[str], list[Any]]:
     """Shared list filters. ``contact_filter``: any | has | none. When ``industry`` is None, industry is not constrained.
-    ``data_batch``: all (default) | latest (newest run) | original (pre-scrape leads only)."""
+    ``data_batch``: all (default) | latest (newest run) | original (pre-scrape leads only).
+
+    ``email_filter``: any | has | none — on a usable EMAIL ADDRESS, which is not
+    the same question as ``contact_filter``. A contact row can exist with only a
+    name and a job title; outreach cannot send to it. The list already reports
+    both counts per account (contacts_count vs emails_count) and they diverge
+    widely, so 'has a contact' was answering the wrong question for anyone
+    picking who to email."""
     where = ["1=1"]
     args: list[Any] = []
     db = (data_batch or "all").strip().lower()
@@ -285,6 +293,19 @@ def _account_table_where_clauses(
         where.append("EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id)")
     elif cf == "none":
         where.append("NOT EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id)")
+    ef = (email_filter or "any").strip().lower()
+    if ef not in ("any", "has", "none"):
+        ef = "any"
+    if ef == "has":
+        where.append(
+            "EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id "
+            "AND trim(COALESCE(c.email, '')) <> '')"
+        )
+    elif ef == "none":
+        where.append(
+            "NOT EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id "
+            "AND trim(COALESCE(c.email, '')) <> '')"
+        )
     if momentum_only:
         where.append("fresh_signal != 0")
     if equipment_tag and equipment_tag.strip():
@@ -1292,6 +1313,7 @@ def summary(
     industry: str = Query(default=""),
     min_icp: float = Query(default=0.0),
     contact_filter: str = Query(default="any"),
+    email_filter: str = Query(default="any"),
     momentum_only: bool = Query(default=False),
     equipment_tag: str = Query(default=""),
 ) -> dict[str, Any]:
@@ -1379,6 +1401,7 @@ def summary(
             q=q,
             min_icp=min_icp,
             contact_filter=contact_filter,
+            email_filter=email_filter,
             momentum_only=momentum_only,
             industry=industry if industry.strip() else None,
             equipment_tag=equipment_tag if equipment_tag.strip() else None,
@@ -1606,6 +1629,7 @@ def list_accounts(
     industry: str = Query(default=""),
     min_icp: float = Query(default=0.0),
     contact_filter: str = Query(default="any"),
+    email_filter: str = Query(default="any"),
     has_reminder: bool = Query(default=False),
     momentum_only: bool = Query(default=False),
     equipment_tag: str = Query(default=""),
@@ -1619,6 +1643,7 @@ def list_accounts(
             q=q,
             min_icp=min_icp,
             contact_filter=contact_filter,
+            email_filter=email_filter,
             momentum_only=momentum_only,
             industry=industry if industry.strip() else None,
             has_reminder=has_reminder,

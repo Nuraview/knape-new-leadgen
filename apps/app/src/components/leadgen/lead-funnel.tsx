@@ -72,7 +72,7 @@ export function LeadFunnel() {
   return (
     <section className="rounded-lg border border-border bg-card p-5">
       <div className="flex flex-wrap items-baseline gap-2">
-        <h2 className="text-sm font-semibold">Finding schools</h2>
+        <h2 className="text-sm font-semibold">Finding companies</h2>
         <span className="text-xs text-muted-foreground">
           what the outreach is built from
         </span>

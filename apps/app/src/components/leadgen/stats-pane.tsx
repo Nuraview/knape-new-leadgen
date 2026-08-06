@@ -221,7 +221,7 @@ export function StatsPane() {
               {stats.data?.scanner_filtered ? (
                 <p className="mt-2 text-xs text-muted-foreground">
                   {stats.data.scanner_filtered} opens/clicks excluded as
-                  security-scanner traffic. School districts are heavily
+                  security-scanner traffic. Large industrial firms are heavily
                   scanned; counting those would flatter the numbers.
                 </p>
               ) : null}
