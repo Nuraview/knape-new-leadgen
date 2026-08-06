@@ -164,6 +164,23 @@ const ALLOWED: ReadonlyArray<{ method: string; prefix: string }> = [
   { method: "POST", prefix: "/api/emails/campaign/start" },
   { method: "POST", prefix: "/api/emails/campaign/stop" },
 
+  /*
+   * The project-management board.
+   *
+   * Trello-lite kanban living in the cockpit's own pm_* tables, shared with the
+   * client's other dashboard — the same cards, so a card moved on either moves
+   * on both. Every verb, because the board is fully interactive: PATCH edits a
+   * card, POST /move persists a drag, DELETE archives.
+   *
+   * DELETE is scoped to /api/pm/ specifically rather than riding a broader
+   * rule. `archive_card` sets archived_at; it does not drop rows. That is the
+   * only destructive-looking verb reachable here and it is reversible.
+   */
+  { method: "GET", prefix: "/api/pm/" },
+  { method: "POST", prefix: "/api/pm/" },
+  { method: "PATCH", prefix: "/api/pm/" },
+  { method: "DELETE", prefix: "/api/pm/" },
+
   // Inbound website leads.
   { method: "GET", prefix: "/api/sample-leads" },
 

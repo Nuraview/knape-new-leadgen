@@ -1883,129 +1883,169 @@ def pipeline_enrich_contacts(_user: dict[str, Any] = Depends(_auth_user)) -> dic
 
 
 # ================== Project management (in-dashboard kanban) ==================
+#
+# Replaced wholesale with the implementation from knape-leadgen's cockpit,
+# which is the one the client actually uses. Both builds create a pm_cards
+# table in the SAME shared `leadgen` database, and knape-leadgen's schema is
+# the one that won the CREATE TABLE IF NOT EXISTS race: the live table has its
+# position/labels/due_at/archived_at columns, and its sibling tables hold the
+# real rows (pm_card_events, pm_checklist_items) while the two this build
+# wrote (pm_comments, pm_checklist) are empty.
+#
+# So this is not a port for its own sake — reading knape-leadgen's store is
+# what makes this dashboard show the board the client already has, rather than
+# an empty second one beside it. Ordered positions and /move come with it.
+
+# ---------------------------------------------------------------------------
+# Project Management board (Trello-lite kanban) — Jul-20 client call.
+# Fixed columns, cards with title/description, comment + activity timeline,
+# drag-and-drop persisted via /move (neighbour ids → server-computed position).
+# ---------------------------------------------------------------------------
 
 
 class PmCardCreateInput(BaseModel):
     title: str
-    description: str = ""
-    column_key: str = "new"
+    description: str | None = None
+    column: str = "new"
 
 
 class PmCardUpdateInput(BaseModel):
+    # Absent field = leave unchanged; explicit null clears (description/due_at).
     title: str | None = None
     description: str | None = None
-    column_key: str | None = None
-    position: float | None = None
+    due_at: float | None = None
     labels: list[str] | None = None
-    due_at: float | None = None  # 0 clears the due date
+
+
+class PmChecklistCreateInput(BaseModel):
+    text: str
+
+
+class PmChecklistUpdateInput(BaseModel):
+    done: bool | None = None
+    text: str | None = None
+
+
+class PmCardMoveInput(BaseModel):
+    to_column: str
+    after_card_id: int | None = None
+    before_card_id: int | None = None
 
 
 class PmCommentInput(BaseModel):
     body: str
 
 
-class PmCheckCreateInput(BaseModel):
-    text: str
+def _pm_error(e: Exception) -> HTTPException:
+    if isinstance(e, LookupError):
+        return HTTPException(status_code=404, detail=str(e))
+    return HTTPException(status_code=400, detail=str(e))
 
 
-class PmCheckUpdateInput(BaseModel):
-    text: str | None = None
-    done: bool | None = None
-
-
-@app.get("/api/pm/board")
-def pm_board(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+@app.get("/api/pm/cards")
+def pm_cards_list(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     from outreach import pm_store
 
-    return {"columns": pm_store.list_board()}
+    return {"columns": list(pm_store.PM_COLUMNS), "cards": pm_store.list_cards()}
 
 
 @app.post("/api/pm/cards")
-def pm_card_create(body: PmCardCreateInput, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+def pm_cards_create(body: PmCardCreateInput, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     from outreach import pm_store
 
-    title = (body.title or "").strip()
-    if not title:
-        raise HTTPException(status_code=400, detail="Card title is required")
-    return {"ok": True, "card": pm_store.create_card(title, body.description or "", body.column_key or "new")}
+    try:
+        card = pm_store.create_card(body.title, body.description, body.column, user["email"])
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"card": card}
 
 
 @app.get("/api/pm/cards/{card_id}")
-def pm_card_get(card_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+def pm_card_detail(card_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     from outreach import pm_store
 
-    card = pm_store.get_card(card_id)
-    if not card:
+    detail = pm_store.get_card(card_id)
+    if not detail:
         raise HTTPException(status_code=404, detail="Card not found")
-    return {
-        "card": card,
-        "comments": pm_store.list_comments(card_id),
-        "checklist": pm_store.list_checklist(card_id),
-    }
+    return detail
 
 
 @app.patch("/api/pm/cards/{card_id}")
 def pm_card_update(card_id: int, body: PmCardUpdateInput, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     from outreach import pm_store
 
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    card = pm_store.update_card(card_id, fields, actor=str(user.get("email") or ""))
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-    return {"ok": True, "card": card}
+    patch = {k: getattr(body, k) for k in body.model_fields_set}
+    try:
+        card = pm_store.update_card(card_id, patch, user["email"])
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"card": card}
 
 
-@app.delete("/api/pm/cards/{card_id}")
-def pm_card_delete(card_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+@app.post("/api/pm/cards/{card_id}/checklist")
+def pm_checklist_add(card_id: int, body: PmChecklistCreateInput, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     from outreach import pm_store
 
-    pm_store.delete_card(card_id)
-    return {"ok": True}
+    try:
+        item = pm_store.add_checklist_item(card_id, body.text)
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"item": item}
+
+
+@app.patch("/api/pm/checklist/{item_id}")
+def pm_checklist_update(item_id: int, body: PmChecklistUpdateInput, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import pm_store
+
+    try:
+        item = pm_store.update_checklist_item(item_id, body.done, body.text)
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"item": item}
+
+
+@app.delete("/api/pm/checklist/{item_id}")
+def pm_checklist_delete(item_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import pm_store
+
+    try:
+        pm_store.delete_checklist_item(item_id)
+    except LookupError as e:
+        raise _pm_error(e) from e
+    return {"deleted": True}
+
+
+@app.post("/api/pm/cards/{card_id}/move")
+def pm_card_move(card_id: int, body: PmCardMoveInput, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import pm_store
+
+    try:
+        card = pm_store.move_card(card_id, body.to_column, body.after_card_id, body.before_card_id, user["email"])
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"card": card}
 
 
 @app.post("/api/pm/cards/{card_id}/comments")
 def pm_card_comment(card_id: int, body: PmCommentInput, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     from outreach import pm_store
 
-    text = (body.body or "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Comment text is required")
-    if not pm_store.get_card(card_id):
-        raise HTTPException(status_code=404, detail="Card not found")
-    return {"ok": True, "comments": pm_store.add_comment(card_id, str(user.get("email") or ""), text)}
+    try:
+        event = pm_store.add_comment(card_id, body.body, user["email"])
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"event": event}
 
 
-@app.post("/api/pm/cards/{card_id}/checklist")
-def pm_check_create(card_id: int, body: PmCheckCreateInput, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+@app.delete("/api/pm/cards/{card_id}")
+def pm_card_archive(card_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     from outreach import pm_store
 
-    text = (body.text or "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Checklist item text is required")
-    if not pm_store.get_card(card_id):
-        raise HTTPException(status_code=404, detail="Card not found")
-    return {"ok": True, "checklist": pm_store.add_check_item(card_id, text)}
-
-
-@app.patch("/api/pm/checklist/{item_id}")
-def pm_check_update(item_id: int, body: PmCheckUpdateInput, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
-    from outreach import pm_store
-
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    card_id = pm_store.update_check_item(item_id, fields)
-    if card_id is None:
-        raise HTTPException(status_code=404, detail="Checklist item not found")
-    return {"ok": True, "checklist": pm_store.list_checklist(card_id), "card": pm_store.get_card(card_id)}
-
-
-@app.delete("/api/pm/checklist/{item_id}")
-def pm_check_delete(item_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
-    from outreach import pm_store
-
-    card_id = pm_store.delete_check_item(item_id)
-    if card_id is None:
-        raise HTTPException(status_code=404, detail="Checklist item not found")
-    return {"ok": True, "checklist": pm_store.list_checklist(card_id), "card": pm_store.get_card(card_id)}
+    try:
+        pm_store.archive_card(card_id)
+    except LookupError as e:
+        raise _pm_error(e) from e
+    return {"archived": True}
 
 
 # ============================ Email outreach API ============================
