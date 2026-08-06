@@ -1567,9 +1567,41 @@ def pipeline_status(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, An
     }
 
 
+#: Leads per page. The list is one card per company and the database now holds
+#: thousands (5,889 at the time of writing), so shipping every row made the
+#: response large and the render slow. Ported from the sibling cockpit build in
+#: knape-leadgen, which has carried these for a while — same values, so a page
+#: here holds the same rows as a page there.
+DEFAULT_PAGE_SIZE = 500
+MAX_PAGE_SIZE = 2000
+
+
+def _paginate(items: list[dict[str, Any]], page: int, page_size: int) -> dict[str, Any]:
+    """Slice ``items`` and describe the slice.
+
+    Clamps an out-of-range page to the last real one instead of returning an
+    empty list: pages shrink when a filter narrows the set, and a stale page
+    number in the UI should land somewhere useful rather than on nothing.
+    """
+    total = len(items)
+    size = max(1, min(MAX_PAGE_SIZE, page_size))
+    pages = max(1, (total + size - 1) // size)
+    current = max(1, min(page, pages))
+    start = (current - 1) * size
+    return {
+        "items": items[start : start + size],
+        "total": total,
+        "page": current,
+        "page_size": size,
+        "pages": pages,
+    }
+
+
 @app.get("/api/accounts")
 def list_accounts(
     _user: dict[str, Any] = Depends(_auth_user),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     q: str = Query(default=""),
     industry: str = Query(default=""),
     min_icp: float = Query(default=0.0),
@@ -1655,11 +1687,9 @@ def list_accounts(
                 """,
                 tuple(args),
             ).fetchall()
-            return {
-                "mode": "people",
-                "items": [dict(r) for r in people if _account_row_is_visible(dict(r))],
-            }
-        return {"mode": "accounts", "items": items}
+            visible = [dict(r) for r in people if _account_row_is_visible(dict(r))]
+            return {"mode": "people", **_paginate(visible, page, page_size)}
+        return {"mode": "accounts", **_paginate(items, page, page_size)}
     finally:
         conn.close()
 

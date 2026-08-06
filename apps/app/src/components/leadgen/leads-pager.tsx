@@ -5,22 +5,17 @@
  * frontend/src/components/leads/LeadsPager.tsx) so the two surfaces count and
  * navigate the same way, restyled to this app's tokens.
  *
- * ONE DIFFERENCE, and it matters: over there the paging is done by the SERVER.
- * That build of cockpit_api.py has `_paginate` and a MAX_PAGE_SIZE of 2000, so
- * its /api/accounts answers { items, total, page, page_size, pages } and each
- * page is its own request. The build behind THIS dashboard (:8790, from
- * apps/leadgen) never received that change — it ignores `page`/`page_size` and
- * returns all 5,889 rows as { mode, items }. Verified against the live service.
+ * Paging is SERVER-side, as it is over there: cockpit_api.py `_paginate`,
+ * DEFAULT_PAGE_SIZE 500, MAX_PAGE_SIZE 2000, and /api/accounts answers
+ * { mode, items, total, page, page_size, pages }. Each page is its own request
+ * and its own react-query cache entry, so paging back is instant.
  *
- * So the paging here is client-side over a list already in memory. The response
- * is fetched once and react-query caches it; turning a page costs no network
- * and no refetch. What it buys is the render: 5,889 cards at once is thousands
- * of DOM nodes on first paint, which is the thing that made this page feel
- * broken.
+ * That matters beyond the render: this list is 5,889 rows and every request
+ * crosses the Vercel function → VPS proxy hop. Slicing in the browser fixed the
+ * DOM cost but still shipped the whole table each time.
  *
- * If that endpoint ever gains `_paginate`, this component's props are already
- * the server's response shape — swap the slice for the request and delete
- * nothing.
+ * `info.page` must come from the RESPONSE, not from the requested page — the
+ * server clamps an out-of-range request to the last real page.
  */
 import { cn } from "@/lib/cn";
 

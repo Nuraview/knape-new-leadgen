@@ -60,12 +60,14 @@ function RouteComponent() {
   const [batch, setBatch] = useState("");
   const [q, setQ] = useState("");
   /*
-   * The cockpit returns the whole list (5,889 rows today) and has no paging —
-   * it ignores page/page_size and answers { mode, items }. Rendering all of it
-   * produced thousands of DOM nodes on first paint and made the page feel
-   * broken. This used to cap the render at 60 with a "show more" button; it is
-   * now a real pager, because "show more" gives no way to reach row 4,000 and
-   * no sense of how much list is left. See components/leadgen/leads-pager.tsx.
+   * Paging is SERVER-side: the cockpit slices and answers
+   * { mode, items, total, page, page_size, pages }. This used to cap the render
+   * at 60 with a "show more" button over the full 5,889-row response — which
+   * fixed the render but still shipped every row, and gave no way to reach row
+   * 4,000. See components/leadgen/leads-pager.tsx.
+   *
+   * `page` here is only what we ASK for. What gets rendered is the page the
+   * server says it served, because it clamps an out-of-range request.
    */
   const [page, setPage] = useState(1);
   /** The scrolling region, so a page turn can return to the top of the list. */
@@ -82,12 +84,16 @@ function RouteComponent() {
   });
 
   const list = useQuery({
-    queryKey: ["leadgen", "accounts", mode, batch, q],
+    // `page` is part of the key: each page is its own request and its own
+    // cache entry, so paging back is instant and does not refetch.
+    queryKey: ["leadgen", "accounts", mode, batch, q, page],
     queryFn: () =>
       leadgen.get<AccountsResponse>("/api/accounts", {
         mode,
         data_batch: batch,
         q,
+        page: String(page),
+        page_size: String(PAGE_SIZE),
       }),
     // The list is a proxied cross-network call; refetching it on every
     // remount made switching tabs feel broken.
@@ -118,23 +124,22 @@ function RouteComponent() {
     return buildDayChips(rows, new Date());
   }, [batches.data]);
 
-  const allItems = list.data?.items ?? [];
+  /* One page of rows, already sliced by the cockpit. */
+  const items = list.data?.items ?? [];
   const isPeople = list.data?.mode === "people";
+  /** Rows across ALL pages — what the header count and the pager report. */
+  const total = list.data?.total ?? 0;
 
-  const pages = Math.max(1, Math.ceil(allItems.length / PAGE_SIZE));
   /*
-   * Clamp rather than trust `page`. Narrowing the search while on page 8 leaves
-   * the state pointing past the end of a now-shorter list, and an out-of-range
-   * slice renders an empty page under a pager that says there is data on it.
+   * Read the envelope, do not recompute it. The server clamps an out-of-range
+   * page, so trusting local `page` would draw a pager pointing at page 8 while
+   * page 5 is on screen.
    */
-  const current = Math.min(page, pages);
-  const items = allItems.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
-
   const pageInfo = {
-    page: current,
-    pageSize: PAGE_SIZE,
-    total: allItems.length,
-    pages,
+    page: list.data?.page ?? page,
+    pageSize: list.data?.page_size ?? PAGE_SIZE,
+    total,
+    pages: list.data?.pages ?? 1,
   };
 
   /*
@@ -169,7 +174,7 @@ function RouteComponent() {
         <span className="text-sm text-muted-foreground">
           {list.isLoading
             ? ""
-            : `${allItems.length} lead${allItems.length === 1 ? "" : "s"}`}
+            : `${total.toLocaleString()} lead${total === 1 ? "" : "s"}`}
         </span>
       </header>
 

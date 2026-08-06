@@ -286,9 +286,10 @@ const TOOLS: Record<
     },
     run: async (args) => {
       const q = encodeURIComponent(String(args.query ?? "").slice(0, 80));
-      const r = await cockpitGet<{ items?: Record<string, unknown>[] }>(
-        `/api/accounts?mode=accounts&q=${q}`,
-      );
+      const r = await cockpitGet<{
+        items?: Record<string, unknown>[];
+        total?: number;
+      }>(`/api/accounts?mode=accounts&q=${q}`);
       const items = (r.items ?? []).slice(0, 8).map((a) => ({
         company: a.company,
         location: a.location,
@@ -296,7 +297,13 @@ const TOOLS: Record<
         contacts: a.contact_count,
         with_email: a.contact_email_count,
       }));
-      return { found: r.items?.length ?? 0, showing: items };
+      /*
+       * `total`, not items.length. The endpoint pages at 500 now, so the array
+       * is one page — reporting its length would tell the assistant a search
+       * matched 500 companies whenever it matched more, and it says that number
+       * out loud to the client. Falls back for safety.
+       */
+      return { found: r.total ?? r.items?.length ?? 0, showing: items };
     },
   },
 };

@@ -56,10 +56,27 @@ export type Person = {
   signal_url?: string | null;
 };
 
+/**
+ * Paging envelope on GET /api/accounts.
+ *
+ * The endpoint pages server-side (cockpit_api.py `_paginate`), defaulting to
+ * 500 rows. `page` is the page the server actually served, which is NOT always
+ * the one asked for: an out-of-range page clamps to the last real one, so a
+ * stale page number in the UI lands on data rather than on nothing. Render the
+ * pager from this, not from the requested page.
+ */
+export type PageEnvelope = {
+  total: number;
+  /** 1-based, and authoritative — the server may have clamped it. */
+  page: number;
+  page_size: number;
+  pages: number;
+};
+
 /** GET /api/accounts — the shape depends on the `mode` parameter. */
 export type AccountsResponse =
-  | { mode: "accounts"; items: Account[] }
-  | { mode: "people"; items: Person[] };
+  | ({ mode: "accounts"; items: Account[] } & PageEnvelope)
+  | ({ mode: "people"; items: Person[] } & PageEnvelope);
 
 /**
  * One entry in the scrape-date filter, from GET /api/pipeline/batches.
