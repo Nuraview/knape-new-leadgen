@@ -181,6 +181,28 @@ const ALLOWED: ReadonlyArray<{ method: string; prefix: string }> = [
   { method: "PATCH", prefix: "/api/pm/" },
   { method: "DELETE", prefix: "/api/pm/" },
 
+  /*
+   * The social content scheduler — drafted LinkedIn posts and their creatives,
+   * shared with the client's other cockpit the same way the pm_* board is.
+   *
+   * GET covers both the JSON and the creatives themselves: /media/{id}/file
+   * streams an image back through this proxy. That is deliberate. Upstream also
+   * accepts the bearer as a ?token= query param precisely so a browser can put
+   * that URL in an <img> tag, and going through here means the token stays
+   * server-side instead of sitting in a URL that lands in every access log.
+   *
+   * DELETE removes a creative or soft-deletes a post (deleted_at, not a DROP).
+   * The genuinely unauthenticated upstream routes — /api/social/share/{token} —
+   * are absent by design: they answer with no session at all, and nothing
+   * reachable through this proxy should.
+   */
+  { method: "GET", prefix: "/api/social/posts" },
+  { method: "GET", prefix: "/api/social/media/" },
+  { method: "POST", prefix: "/api/social/posts" },
+  { method: "PATCH", prefix: "/api/social/posts/" },
+  { method: "DELETE", prefix: "/api/social/posts/" },
+  { method: "DELETE", prefix: "/api/social/media/" },
+
   // Inbound website leads.
   { method: "GET", prefix: "/api/sample-leads" },
 
@@ -214,8 +236,28 @@ function cacheKey(path: string, search: string) {
   return `${path}${search}`;
 }
 
+/**
+ * Paths that must never be proxied even though an ALLOWED prefix covers them.
+ *
+ * Prefix matching cannot express "everything under /api/social/posts EXCEPT
+ * the share sub-resource" — /api/social/posts/4/share starts with
+ * /api/social/posts, so the rule that lets the scheduler work would hand out
+ * share tokens too. Narrowing the prefixes instead would mean enumerating every
+ * verb around an ID in the middle of the path, which goes stale the first time
+ * upstream adds a sub-route.
+ *
+ * What makes these worth a second mechanism rather than a tighter prefix: a
+ * share token is a credential that grants read access with NO session, which is
+ * the one thing everything behind this proxy is supposed to guarantee.
+ */
+const DENIED: ReadonlyArray<RegExp> = [
+  /^\/api\/social\/posts\/[^/]+\/share$/,
+  /^\/api\/social\/share(\/|$)/,
+];
+
 /** Exported for the allow-list tests — see tests/api/leadgen-proxy-allowlist.test.ts. */
 export function isAllowed(method: string, path: string): boolean {
+  if (DENIED.some((pattern) => pattern.test(path))) return false;
   return ALLOWED.some(
     (rule) => rule.method === method && path.startsWith(rule.prefix),
   );
@@ -327,10 +369,20 @@ const leadgen = new Hono<{ Variables: { userId: string; userEmail: string } }>()
 
     const target = `${leadgenBase()}${suffix}${url.search}`;
     const contentType = c.req.header("content-type");
-    // Read once: the request body is a stream and cannot be consumed twice,
-    // which matters because a 401 makes us replay the call.
+    /*
+     * Read once: the request body is a stream and cannot be consumed twice,
+     * which matters because a 401 makes us replay the call.
+     *
+     * arrayBuffer, not text. Creative uploads send raw image bytes as the body
+     * (POST /api/social/posts/{id}/media), and decoding those as UTF-8 replaces
+     * every invalid sequence with U+FFFD — the upload would "succeed" and write
+     * a corrupt file. Bytes survive the round trip; JSON bodies are unaffected,
+     * since a string body is UTF-8 encoded by fetch anyway.
+     */
     const body =
-      method === "GET" || method === "HEAD" ? undefined : await c.req.text();
+      method === "GET" || method === "HEAD"
+        ? undefined
+        : await c.req.arrayBuffer();
 
     /*
      * A hard timeout, because the upstream does real work behind some of these

@@ -88,5 +88,44 @@ describe("leadgen proxy allow-list", () => {
     it("health, for the connection banner", () => {
       expect(isAllowed("GET", "/api/health")).toBe(true);
     });
+
+    it("the social content scheduler, including creatives", () => {
+      expect(isAllowed("GET", "/api/social/posts")).toBe(true);
+      expect(isAllowed("GET", "/api/social/posts/4")).toBe(true);
+      expect(isAllowed("POST", "/api/social/posts")).toBe(true);
+      expect(isAllowed("POST", "/api/social/posts/4/approve")).toBe(true);
+      expect(isAllowed("POST", "/api/social/posts/4/request-changes")).toBe(
+        true,
+      );
+      expect(isAllowed("POST", "/api/social/posts/4/comments")).toBe(true);
+      expect(isAllowed("POST", "/api/social/posts/4/media")).toBe(true);
+      expect(isAllowed("PATCH", "/api/social/posts/4")).toBe(true);
+      expect(isAllowed("DELETE", "/api/social/posts/4")).toBe(true);
+      // The creative itself, streamed back through the proxy so the bearer
+      // never has to ride in an <img> URL.
+      expect(isAllowed("GET", "/api/social/media/4/file")).toBe(true);
+      expect(isAllowed("DELETE", "/api/social/media/4")).toBe(true);
+    });
+  });
+
+  /*
+   * Upstream's share routes answer with NO session — the token in the path is
+   * the whole credential. They are the one part of that API that contradicts
+   * this proxy's contract, so they get their own test rather than relying on
+   * the allow-list happening not to match them.
+   */
+  it("never proxies the unauthenticated share links", () => {
+    expect(isAllowed("GET", "/api/social/share/abc123")).toBe(false);
+    expect(isAllowed("GET", "/api/social/share/abc123/media/4")).toBe(false);
+    expect(isAllowed("POST", "/api/social/posts/4/share")).toBe(false);
+    expect(isAllowed("DELETE", "/api/social/posts/4/share")).toBe(false);
+  });
+
+  it("never proxies LinkedIn account connection", () => {
+    // Not ported: no account has ever been connected, and OAuth redirects
+    // through a proxy would land the callback on the wrong origin.
+    expect(isAllowed("GET", "/api/social/linkedin/status")).toBe(false);
+    expect(isAllowed("GET", "/api/social/linkedin/connect")).toBe(false);
+    expect(isAllowed("DELETE", "/api/social/linkedin")).toBe(false);
   });
 });

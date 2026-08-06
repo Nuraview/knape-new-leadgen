@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Link2, Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -129,10 +129,6 @@ export function PostDetailDialog({
       setUploading(false);
     }
   }
-
-  const shareUrl = post?.shareToken
-    ? `${window.location.origin}/post/${post.shareToken}`
-    : null;
 
   return (
     <Dialog open={Boolean(postId)} onOpenChange={(o) => !o && onClose()}>
@@ -373,51 +369,14 @@ export function PostDetailDialog({
                 }
               />
 
-              <div className="space-y-2">
-                <h3 className="m-0 font-semibold text-[12px] text-muted-foreground uppercase tracking-[0.07em]">
-                  Share link
-                </h3>
-                {shareUrl ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Input readOnly value={shareUrl} className="min-w-[220px] flex-1" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void copy("link", shareUrl)}
-                    >
-                      <Copy className="size-4" />
-                      {copied === "link" ? "Copied" : "Copy"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="text-rose-500 hover:bg-rose-500/10"
-                      onClick={() =>
-                        mutate.mutate({
-                          path: `linkedin/posts/${postId}/share`,
-                          init: { method: "DELETE" },
-                        })
-                      }
-                    >
-                      Revoke
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="m-0 flex-1 text-[12px] text-muted-foreground">
-                      Anyone with the link sees the post as the feed will show
-                      it. No login, no CRM account, revocable at any time.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => action("share")}
-                    >
-                      <Link2 className="size-4" /> Create share link
-                    </Button>
-                  </div>
-                )}
-              </div>
+              {/*
+                Share links are not available against the cockpit's post store.
+                Upstream can mint a token that grants read access with NO
+                session, which is the one guarantee everything behind the
+                lead-gen proxy is supposed to keep — so those paths are refused
+                there (the DENIED list in apps/api/src/leadgen/index.ts) and the
+                control is removed here rather than left to fail on click.
+              */}
 
               <div className="space-y-2">
                 <h3 className="m-0 font-semibold text-[12px] text-muted-foreground uppercase tracking-[0.07em]">

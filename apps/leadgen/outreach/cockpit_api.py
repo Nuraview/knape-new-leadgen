@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -1157,6 +1157,19 @@ def _startup() -> None:
         print("Cockpit: project-management module ready.", flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"Cockpit: project-management init failed: {e}", flush=True)
+    # Social content scheduler. init_db is CREATE TABLE IF NOT EXISTS against
+    # tables the client's other cockpit already created and filled, so this is
+    # a no-op there — it exists so a fresh install still comes up working.
+    try:
+        from outreach import social_store
+
+        social_store.init_db()
+        print(
+            f"Cockpit: social scheduler ready (media root {social_store.MEDIA_ROOT}).",
+            flush=True,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"Cockpit: social scheduler init failed: {e}", flush=True)
 
 
 @app.get("/api/health")
@@ -2046,6 +2059,239 @@ def pm_card_archive(card_id: int, _user: dict[str, Any] = Depends(_auth_user)) -
     except LookupError as e:
         raise _pm_error(e) from e
     return {"archived": True}
+
+
+# ========================= Social content scheduler =========================
+# Drafted LinkedIn posts — primary text plus creatives — each pinned to a date
+# and time. Staff write them, the client reads the text, views the creative and
+# either approves or asks for changes; approved posts are published by hand at
+# the scheduled time.
+#
+# These rows are SHARED with the client's original cockpit, exactly like the
+# pm_* board: same database, same social_posts table. A post approved here is
+# approved there. That is the point — the schedule already had months of Knape
+# content in it before this dashboard could show any of it.
+#
+# Ported deliberately incomplete. The upstream also carries LinkedIn OAuth
+# auto-publishing and public no-login share links; neither is here. Nothing has
+# ever connected a LinkedIn account, and the share routes are the only
+# unauthenticated endpoints in that API — not something to expose through a
+# proxy whose whole contract is that every path behind it requires a session.
+
+
+class SocialPostCreateInput(BaseModel):
+    body: str
+    title: str | None = None
+    scheduled_at: float | None = None
+    timezone: str | None = None
+
+
+class SocialPostUpdateInput(BaseModel):
+    body: str | None = None
+    title: str | None = None
+    scheduled_at: float | None = None
+    timezone: str | None = None
+
+
+class SocialCommentInput(BaseModel):
+    body: str
+
+
+class SocialChangesInput(BaseModel):
+    comment: str
+
+
+class SocialPublishedInput(BaseModel):
+    url: str
+
+
+@app.get("/api/social/posts")
+def social_posts_list(
+    month: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    _user: dict[str, Any] = Depends(_auth_user),
+) -> dict[str, Any]:
+    from outreach import social_store
+
+    return {
+        "statuses": list(social_store.SOCIAL_STATUSES),
+        "posts": social_store.list_posts(month=month, status=status),
+    }
+
+
+@app.post("/api/social/posts")
+def social_posts_create(body: SocialPostCreateInput, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        post = social_store.create_post(body.body, body.title, body.scheduled_at, body.timezone, user["email"])
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"post": post}
+
+
+@app.get("/api/social/posts/{post_id}")
+def social_post_detail(post_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        return social_store.get_post(post_id)
+    except LookupError as e:
+        raise _pm_error(e) from e
+
+
+@app.patch("/api/social/posts/{post_id}")
+def social_post_update(post_id: int, body: SocialPostUpdateInput, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    # model_fields_set, not a dict comprehension over all fields: an omitted
+    # field and a field explicitly set to null mean different things here
+    # (leave the schedule alone vs. unschedule the post).
+    patch = {k: getattr(body, k) for k in body.model_fields_set}
+    try:
+        post = social_store.update_post(post_id, patch, user["email"])
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"post": post}
+
+
+@app.delete("/api/social/posts/{post_id}")
+def social_post_delete(post_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        social_store.soft_delete_post(post_id)
+    except LookupError as e:
+        raise _pm_error(e) from e
+    return {"deleted": True}
+
+
+@app.post("/api/social/posts/{post_id}/submit")
+def social_post_submit(post_id: int, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        return {"post": social_store.submit_for_approval(post_id, user["email"])}
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+
+
+@app.post("/api/social/posts/{post_id}/approve")
+def social_post_approve(post_id: int, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        return {"post": social_store.approve(post_id, user["email"])}
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+
+
+@app.post("/api/social/posts/{post_id}/request-changes")
+def social_post_request_changes(
+    post_id: int, body: SocialChangesInput, user: dict[str, Any] = Depends(_auth_user)
+) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        return {"post": social_store.request_changes(post_id, body.comment, user["email"])}
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+
+
+@app.post("/api/social/posts/{post_id}/comments")
+def social_post_comment(post_id: int, body: SocialCommentInput, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        comment = social_store.add_comment(post_id, body.body, user["email"])
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"comment": comment}
+
+
+@app.post("/api/social/posts/{post_id}/published")
+def social_post_mark_published(
+    post_id: int, body: SocialPublishedInput, user: dict[str, Any] = Depends(_auth_user)
+) -> dict[str, Any]:
+    """Record a post that was published to LinkedIn by hand."""
+    from outreach import social_store
+
+    try:
+        return {"post": social_store.mark_published_manual(post_id, body.url, user["email"])}
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+
+
+@app.delete("/api/social/posts/{post_id}/published")
+def social_post_unmark_published(post_id: int, user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        return {"post": social_store.unmark_published(post_id, user["email"])}
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+
+
+@app.post("/api/social/posts/{post_id}/media")
+async def social_post_media_upload(
+    post_id: int,
+    request: Request,
+    file_name: str = Query(...),
+    content_type: str = Query(...),
+    _user: dict[str, Any] = Depends(_auth_user),
+) -> dict[str, Any]:
+    """Raw-body upload — the file bytes ARE the request body, metadata rides in
+    query params. No multipart parser, and nothing for the CRM's proxy to
+    re-encode on the way through."""
+    from outreach import social_store
+
+    content = await request.body()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(content) > 200 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (200 MB max)")
+    try:
+        media = social_store.add_media(post_id, file_name, content, content_type)
+    except (ValueError, LookupError) as e:
+        raise _pm_error(e) from e
+    return {"media": media}
+
+
+@app.get("/api/social/media/{media_id}/file")
+def social_media_file(media_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> FileResponse:
+    """The creative itself.
+
+    Upstream also accepts ``?token=`` here, because its SPA puts this URL
+    straight into an <img> tag and a browser will not attach an Authorization
+    header to an image load. This deployment does not need that escape hatch:
+    the CRM proxies the request server-side and adds the bearer itself, so the
+    token never has to travel in a URL where it would land in access logs.
+    """
+    from outreach import social_store
+
+    try:
+        media = social_store.get_media(media_id)
+    except LookupError as e:
+        raise _pm_error(e) from e
+    path = Path(str(media["stored_path"]))
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="File missing on disk")
+    return FileResponse(
+        path,
+        media_type=media.get("content_type") or "application/octet-stream",
+        filename=str(media["file_name"]),
+    )
+
+
+@app.delete("/api/social/media/{media_id}")
+def social_media_delete(media_id: int, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    from outreach import social_store
+
+    try:
+        social_store.remove_media(media_id)
+    except LookupError as e:
+        raise _pm_error(e) from e
+    return {"deleted": True}
 
 
 # ============================ Email outreach API ============================

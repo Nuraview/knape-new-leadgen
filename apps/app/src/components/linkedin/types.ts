@@ -1,4 +1,4 @@
-import { getApiUrl } from "@/fetchers/get-api-url";
+import { routeSocial, uploadSocialCreative } from "./social-bridge";
 
 export type PostMedia = {
   id: string;
@@ -102,48 +102,30 @@ export const TIMEZONES = [
   "UTC",
 ];
 
+/**
+ * Every scheduler call goes to the lead-gen cockpit, not to this CRM's own
+ * `linkedin/*` endpoints.
+ *
+ * Those endpoints exist and work, but they read `nv_linkedin_*` in `knape_crm`,
+ * which is empty — while Knape's actual content calendar sits in `social_posts`
+ * in the `leadgen` database, shared with the client's original dashboard. The
+ * calendar was not broken; it was drawing an empty table. See ./social-bridge
+ * for the mapping and for what is deliberately not carried across.
+ *
+ * The `linkedin/...` paths below are kept as the vocabulary the components
+ * speak. Routing them here rather than rewriting a dozen call sites is what let
+ * the calendar, composer, detail dialog and feed preview move over untouched.
+ */
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(getApiUrl(path), {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = await res.json();
-      message = body?.message ?? message;
-    } catch {
-      /* keep the status text */
-    }
-    throw new Error(message);
-  }
-  return res.json() as Promise<T>;
+  const routed = await routeSocial<T>(path, init);
+  if (routed !== undefined) return routed;
+
+  // Nothing should reach this. It stays as a loud failure rather than a silent
+  // null, so an unmapped path shows up as an error naming the path.
+  throw new Error(`Scheduler route not available: ${init?.method ?? "GET"} ${path}`);
 }
 
 /** Raw-body upload — the bytes are the body, metadata rides in the query. */
 export async function uploadCreative(postId: string, file: File): Promise<void> {
-  const query = new URLSearchParams({
-    fileName: file.name,
-    contentType: file.type || "application/octet-stream",
-  });
-  const res = await fetch(
-    getApiUrl(`linkedin/posts/${postId}/media?${query}`),
-    {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
-      body: file,
-    },
-  );
-  if (!res.ok) {
-    let message = `Upload failed (${res.status})`;
-    try {
-      const body = await res.json();
-      message = body?.message ?? message;
-    } catch {
-      /* keep the status */
-    }
-    throw new Error(message);
-  }
+  await uploadSocialCreative(postId, file);
 }
