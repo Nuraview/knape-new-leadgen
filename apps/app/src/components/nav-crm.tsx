@@ -24,11 +24,11 @@ import {
    *   FileText     Proposals
    *   Receipt      Invoices
    *   Phone        Dialer
-   *   KanbanSquare Projects
    *   Package      Orders
    * Administration used Settings, which is still imported for Pipeline settings.
    */
   Inbox,
+  KanbanSquare,
   LayoutGrid,
   type LucideIcon,
   Mailbox,
@@ -104,6 +104,16 @@ const LEADGEN_ITEMS: CrmNavItem[] = [
   // enrichment caps, send caps and the vendor keys. Named "Pipeline settings"
   // to keep it distinct from account/workspace settings.
   { title: "Pipeline settings", icon: Settings, to: "/pipeline-settings" },
+  /*
+   * The cockpit's kanban board, not this app's own /board.
+   *
+   * /board reads NuraView's projects through /api/nvprojects and needs an
+   * NV_PROJECTS_PROJECT_ID this instance does not have — it is commented out
+   * below for exactly that reason. This one reads the cockpit's pm_* tables,
+   * which are shared with the client's other dashboard, so it shows the board
+   * that already has their cards on it.
+   */
+  { title: "Projects", icon: KanbanSquare, to: "/projects" },
 ];
 
 const ITEMS: CrmNavItem[] = [
