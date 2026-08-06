@@ -25,12 +25,13 @@ import {
    *   Receipt      Invoices
    *   Phone        Dialer
    *   KanbanSquare Projects
+   *   Package      Orders
+   * Administration used Settings, which is still imported for Pipeline settings.
    */
   Inbox,
   LayoutGrid,
   type LucideIcon,
   Mailbox,
-  Package,
   Radar,
   Send,
   Settings,
@@ -154,11 +155,21 @@ const ITEMS: CrmNavItem[] = [
   // { title: "Proposals", icon: FileText, to: "/proposals" },
   // { title: "Invoices", icon: Receipt, to: "/invoices" },
   /*
-   * Orders sits after Invoices because that is the order money moves in: an
-   * invoice is paid, then a planner is dispatched. VK, 2026-08-03: "add
-   * proposals, add invoices, and down below, orders and purchases".
+   * Orders is not offered on this instance.
+   *
+   * Its nv_orders / nv_order_items tables DO exist here — they are the two that
+   * scripts/crm-apply.ts creates — so unlike Proposals and Invoices this one
+   * answers 200. It answers 200 with an empty list, and nothing in this
+   * instance writes to it: orders arrive from a proposal being signed and an
+   * invoice being paid, and neither of those surfaces is offered. An always-
+   * empty screen at the end of a workflow that does not exist.
+   *
+   * Original reasoning, kept so it is not lost:
+   *   Orders sits after Invoices because that is the order money moves in: an
+   *   invoice is paid, then a planner is dispatched. VK, 2026-08-03: "add
+   *   proposals, add invoices, and down below, orders and purchases".
    */
-  { title: "Orders", icon: Package, to: "/orders" },
+  // { title: "Orders", icon: Package, to: "/orders" },
   /*
    * Projects is not offered on this instance.
    *
@@ -207,7 +218,22 @@ const ITEMS: CrmNavItem[] = [
       { title: "Templates", to: "/marketing?view=templates" },
     ],
   },
-  { title: "Administration", icon: Settings, to: "/administration" },
+  /*
+   * Administration is not offered on this instance — and with it, the WhatsApp
+   * bridge, which is the only WhatsApp surface a signed-in user can reach.
+   *
+   * The page is three sections: the WhatsApp bridge pairing/status panel, the
+   * reminder-recipient list (server-side WHATSAPP_RECIPIENTS), and archived
+   * settings. All three drive the nuraview-whatsapp container, which this
+   * instance does not run, so the bridge reports "never reported in" and the
+   * recipient list is empty.
+   *
+   * The other two WhatsApp touch-points in the app go with the entries they
+   * live on: the sms/whatsapp channel picker is inside Dialer, and the
+   * whatsapp/recipients field is on the crm_Leads detail panel. Both of those
+   * entries are commented out above, so nothing is left pointing at it.
+   */
+  // { title: "Administration", icon: Settings, to: "/administration" },
 ];
 
 /** The only entry a `leads_kanban` account may use. */
