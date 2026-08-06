@@ -60,13 +60,26 @@ function getSettings() {
      * firing a request and seeing whether it 503s — a spinner that resolves
      * into "this feature does not exist" is worse than never offering it.
      *
-     * BOTH halves are required. A base URL with no token authenticates nothing
-     * and every proxied call would 503; reporting true then would put six tabs
-     * on screen that cannot load.
+     * A base URL alone is not enough: it authenticates nothing, every proxied
+     * call would 503, and reporting true would put six tabs on screen that
+     * cannot load. So a base URL AND a way to authenticate are both required.
+     *
+     * There are two ways to authenticate, and this used to check only the one
+     * the proxy no longer uses. src/leadgen/index.ts signs in with
+     * LEADGEN_API_EMAIL / LEADGEN_API_PASSWORD (loginToCockpit) and caches the
+     * bearer it gets back; LEADGEN_API_TOKEN is now read NOWHERE else in the
+     * codebase. An instance configured the supported way therefore left it
+     * empty, reported hasLeadgen:false, and the SPA fell back to NuraView's own
+     * nav — Leads pointing at crm_Leads, which on a cockpit instance is a table
+     * that does not exist. The cockpit was answering 200 the whole time.
+     *
+     * Either credential shape counts, because either one gets the proxy a token.
      */
     hasLeadgen: Boolean(
       process.env.LEADGEN_API_BASE?.trim() &&
-        process.env.LEADGEN_API_TOKEN?.trim(),
+        (process.env.LEADGEN_API_TOKEN?.trim() ||
+          (process.env.LEADGEN_API_EMAIL?.trim() &&
+            process.env.LEADGEN_API_PASSWORD?.trim())),
     ),
 
     /*

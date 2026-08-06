@@ -18,16 +18,20 @@ import useGetConfig from "@/hooks/queries/config/use-get-config";
 import {
   CalendarClock,
   ChevronRight,
-  FileText,
+  /*
+   * Icons for the entries commented out below — re-import each alongside the
+   * entry it belongs to:
+   *   FileText     Proposals
+   *   Receipt      Invoices
+   *   Phone        Dialer
+   *   KanbanSquare Projects
+   */
   Inbox,
-  Receipt,
   LayoutGrid,
   type LucideIcon,
   Mailbox,
-  KanbanSquare,
   Package,
   Radar,
-  Phone,
   Send,
   Settings,
   Home,
@@ -111,15 +115,44 @@ const ITEMS: CrmNavItem[] = [
    * updated" (VK, 2026-08-05). The route still resolves for anyone holding a
    * link; it simply is not offered.
    */
-  { title: "Dialer", icon: Phone, to: "/dialer" },
-  { title: "Proposals", icon: FileText, to: "/proposals" },
   /*
-   * Invoices sits directly under Proposals because that is the order money
-   * moves in: a signed proposal converts into an invoice, and the non-signer
-   * case starts here (meeting 2026-07-30 — "I should be able to go to the
-   * invoicing and create manually").
+   * Dialer is not offered on this instance.
+   *
+   * Two independent reasons, either one sufficient. Its contact list, call log
+   * and SMS threads live in the dialer_* tables, which this CRM database does
+   * not have — /api/dialer/contacts answers 500. And placing a call needs the
+   * four Twilio credentials behind config.hasDialer, which are not set, so the
+   * provider already declines to mint a token.
+   *
+   * Commented, not deleted: set the Twilio vars and apply the dialer schema and
+   * this is one line to restore.
    */
-  { title: "Invoices", icon: Receipt, to: "/invoices" },
+  // { title: "Dialer", icon: Phone, to: "/dialer" },
+  /*
+   * Proposals and Invoices are not offered on this instance.
+   *
+   * They read crm_Proposals / Invoices (+ their line-item, asset, activity and
+   * settings tables) out of the CRM database. That schema is introspected from
+   * a live NuraView database rather than owned by migrations — see
+   * src/database/crm-schema.ts and scripts/crm-apply.ts, which creates only the
+   * nv_orders and nv_linkedin tables — so on an instance whose CRM database was
+   * created fresh, those relations do not exist and both pages answer 500.
+   *
+   * Commented rather than deleted: nothing about the modules is wrong, they
+   * simply have no data to stand on here, and an instance that later gets the
+   * schema applied should get its sidebar back by uncommenting two lines.
+   *
+   * Same treatment as Activity above — the routes still resolve for anyone
+   * holding a link; they are just not offered.
+   *
+   * Original ordering and reasoning, kept so it is not lost:
+   *   Invoices sat directly under Proposals because that is the order money
+   *   moves in: a signed proposal converts into an invoice, and the non-signer
+   *   case starts here (meeting 2026-07-30 — "I should be able to go to the
+   *   invoicing and create manually").
+   */
+  // { title: "Proposals", icon: FileText, to: "/proposals" },
+  // { title: "Invoices", icon: Receipt, to: "/invoices" },
   /*
    * Orders sits after Invoices because that is the order money moves in: an
    * invoice is paid, then a planner is dispatched. VK, 2026-08-03: "add
@@ -127,12 +160,23 @@ const ITEMS: CrmNavItem[] = [
    */
   { title: "Orders", icon: Package, to: "/orders" },
   /*
-   * The shared project board. NOT a copy of NuraView's — the same rows, read
-   * and written through /api/nvprojects, so a card moved on either dashboard
-   * moves on both. VK, 2026-08-03: "if any updates made it should sync both
-   * ways."
+   * Projects is not offered on this instance.
+   *
+   * It reads and writes NuraView's own board through /api/nvprojects, keyed by
+   * NV_PROJECTS_PROJECT_ID. That is unset here — there is no second dashboard
+   * to sync with — so every call answers 503 "NV_PROJECTS_PROJECT_ID is not
+   * configured". Note this is the CRM board, NOT the project-management nav
+   * group; that one is already hidden by BRAND_HIDE_PROJECTS.
+   *
+   * Set NV_PROJECTS_PROJECT_ID to restore it.
+   *
+   * Original reasoning, kept so it is not lost:
+   *   The shared project board. NOT a copy of NuraView's — the same rows, read
+   *   and written through /api/nvprojects, so a card moved on either dashboard
+   *   moves on both. VK, 2026-08-03: "if any updates made it should sync both
+   *   ways."
    */
-  { title: "Projects", icon: KanbanSquare, to: "/board" },
+  // { title: "Projects", icon: KanbanSquare, to: "/board" },
   /*
    * LinkedIn posts: drafted ahead of time, reviewed against a feed-accurate
    * preview, approved, then published at their scheduled time. Sits beside the
