@@ -31,6 +31,7 @@ import {
   leadgenEmails,
 } from "@/fetchers/leadgen/emails";
 import { DoThisNow } from "@/components/leadgen/do-this-now";
+import { EmailHistory } from "@/components/leadgen/email-history";
 import { LeadFunnel } from "@/components/leadgen/lead-funnel";
 import { ProviderHealth } from "@/components/leadgen/provider-health";
 import { SentVolume } from "@/components/leadgen/sent-volume";
@@ -419,6 +420,16 @@ function RouteComponent() {
               </p>
             </div>
           </section>
+
+          {/*
+            What has actually been sent, and what is queued next.
+
+            Below "what we're sending" on purpose: that section shows the email
+            as a design, this one shows it as events with names and times
+            attached. Reading order is the question order — how is it doing,
+            who is paying attention, what does it say, what has gone out.
+          */}
+          <EmailHistory />
 
           <p className="pb-2 text-center text-xs text-muted-foreground">
             Running the campaigns lives in{" "}

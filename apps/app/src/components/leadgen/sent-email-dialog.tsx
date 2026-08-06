@@ -11,7 +11,7 @@ import { leadgenEmailExtras } from "@/fetchers/leadgen/emails";
  * reason when there is one.
  *
  * Opens and clicks come from the cockpit already filtered for scanner traffic
- * (Proofpoint, Mimecast, Safe Links auto-open every link). School districts are
+ * (Proofpoint, Mimecast, Safe Links auto-open every link). Large industrial firms are
  * heavily scanned, so an unfiltered "opened" number here would be flattering
  * and wrong.
  *
