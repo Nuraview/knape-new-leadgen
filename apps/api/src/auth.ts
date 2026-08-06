@@ -90,6 +90,32 @@ try {
   }
 } catch {}
 
+// An instance can be reachable on more than one hostname — a custom domain
+// alongside the *.vercel.app one it was first deployed to, say. NURAVIEW_CLIENT_URL
+// cannot express that: it is a single URL because it is also the base for links
+// inside outbound email, which need exactly one canonical answer. So the extra
+// hostnames come from CORS_ORIGINS, which is already a comma-separated list and is
+// already split this way in index.ts.
+//
+// Without this, pointing a new domain at a running instance refuses every login
+// with INVALID_ORIGIN before the password is checked, and moving
+// NURAVIEW_CLIENT_URL to fix that locks login out of the old hostname — leaving no
+// way back in except another full redeploy.
+for (const origin of (process.env.CORS_ORIGINS ?? "").split(",")) {
+  const trimmed = origin.trim();
+  if (!trimmed) continue;
+  try {
+    const parsed = new URL(trimmed);
+    const originString = `${parsed.protocol}//${parsed.host}`;
+    if (!trustedOrigins.includes(originString)) {
+      trustedOrigins.push(originString);
+    }
+  } catch {
+    // A malformed entry is skipped rather than thrown: this runs at module load,
+    // so one bad character in an env var would otherwise take down the whole API.
+  }
+}
+
 const baseURLWithoutPath = (() => {
   try {
     const url = new URL(apiUrl);
