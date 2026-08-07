@@ -189,9 +189,9 @@ Also fixed: `scripts/crm-apply.ts` never loaded dotenv, so it failed with
 3. `sample_leads` still stores `school` / `students_count` / `school_type` as
    **column names**. The UI labels are neutral (Organisation / Size / Segment);
    renaming the columns needs a migration for no user-visible gain.
-4. **The git remote still points at `Nuraview/winplanner-leadgen`.** Do not push
-   branch `knape` there without deciding that is where it belongs. Nothing has
-   been pushed.
+4. ~~The git remote still points at `Nuraview/winplanner-leadgen`.~~ Resolved —
+   `origin` is now `Nuraview/knape-new-leadgen` and work ships from `main`. The
+   local checkout was renamed to `/root/knape/knape-new-leadgen` to match.
 5. Disk is at 93% (7.5 GB free). `bun install` took ~2 GB.
 
 ## Rolling back
