@@ -1171,6 +1171,18 @@ def _startup() -> None:
     except Exception as e:  # noqa: BLE001
         print(f"Cockpit: social scheduler init failed: {e}", flush=True)
 
+    # Mirror the content calendar into the designer's CRM. The thread starts
+    # regardless so enabling the sync is an env change and a restart, not a
+    # deploy, but each tick is a no-op until SCHEDULER_SYNC_ENABLED=1.
+    try:
+        from outreach import scheduler_sync
+
+        scheduler_sync.ensure_scheduler(interval_sec=300)
+        state = "on" if scheduler_sync.is_enabled() else "off (SCHEDULER_SYNC_ENABLED=1 to arm)"
+        print(f"Cockpit: scheduler sync {state}.", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"Cockpit: scheduler sync init failed: {e}", flush=True)
+
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
