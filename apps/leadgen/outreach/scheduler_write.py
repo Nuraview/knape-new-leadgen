@@ -27,6 +27,7 @@ from __future__ import annotations
 import datetime as dt
 import hmac
 import os
+from pathlib import Path
 from typing import Any
 
 from outreach import db, social_store
@@ -550,6 +551,43 @@ def sniff_image(data: bytes) -> str | None:
         if brand in (b"heic", b"heix", b"hevc", b"heim", b"mif1"):
             return "image/heic"
     return None
+
+
+def resolve_media(post_id: int, media_id: int) -> tuple[Path, str, str]:
+    """Locate one creative for serving: (path, content_type, file_name).
+
+    Every failure is the same LookupError, so a caller cannot use the response
+    to map what exists: not our post, wrong post for that media, no such media
+    and no bytes on disk are indistinguishable from outside.
+    """
+    if not owns_post(post_id):
+        raise LookupError("Not found")
+
+    c = db.connect()
+    try:
+        row = c.execute(
+            "SELECT m.* FROM social_post_media m JOIN social_posts p ON p.id = m.post_id "
+            "WHERE m.id=? AND m.post_id=? AND p.deleted_at IS NULL",
+            (media_id, post_id),
+        ).fetchone()
+    finally:
+        c.close()
+    if not row:
+        raise LookupError("Not found")
+
+    path = Path(str(row["stored_path"])).resolve()
+    root = Path(social_store.MEDIA_ROOT).resolve()
+    # stored_path is written by add_media from a sanitised name, so this should
+    # never fire — it is here so a hand-edited or corrupted row cannot turn an
+    # internet-reachable endpoint into "read any file this process can open".
+    if not path.is_relative_to(root) or not path.is_file():
+        raise LookupError("Not found")
+
+    return (
+        path,
+        str(row["content_type"] or "application/octet-stream"),
+        str(row["file_name"] or "creative"),
+    )
 
 
 def add_media(post_id: int, file_name: str, content: bytes, declared_type: str) -> dict[str, Any]:

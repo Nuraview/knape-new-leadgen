@@ -2481,6 +2481,36 @@ def scheduler_write_add_event(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@app.get("/api/scheduler-write/{post_id}/media/{media_id}")
+def scheduler_write_media_file(
+    post_id: int,
+    media_id: int,
+    authorization: str | None = Header(default=None),
+) -> FileResponse:
+    """The creative's bytes, for a post this integration created.
+
+    Served inline rather than as an attachment: the caller proxies this
+    server-side and hands the browser an <img src>, which a download
+    disposition would break.
+
+    No ``?token=`` escape hatch, unlike the cockpit's own media route. The key
+    stays in a header, never in a URL that would land in access logs.
+    """
+    from outreach import scheduler_write
+
+    _scheduler_write_guard(authorization)
+    try:
+        path, content_type, file_name = scheduler_write.resolve_media(post_id, media_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return FileResponse(
+        path,
+        media_type=content_type,
+        filename=file_name,
+        content_disposition_type="inline",
+    )
+
+
 @app.post("/api/scheduler-write/{post_id}/media")
 async def scheduler_write_media(
     post_id: int,
