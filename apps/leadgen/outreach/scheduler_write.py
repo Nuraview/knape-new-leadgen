@@ -244,6 +244,35 @@ def _external_id_for(post_id: int) -> str | None:
         c.close()
 
 
+def _media_for(post_id: int) -> list[dict[str, Any]]:
+    """What is attached, without the bytes.
+
+    No URL: the creatives sit behind the cockpit's session auth, so any link
+    here would 404 or 401 for this caller. Names and types are enough for a
+    remote UI to stop claiming a post has no image when it has three.
+    """
+    c = db.connect()
+    try:
+        rows = c.execute(
+            "SELECT id, file_name, content_type, kind, size_bytes, created_at "
+            "FROM social_post_media WHERE post_id=? ORDER BY sort_order, id",
+            (post_id,),
+        ).fetchall()
+        return [
+            {
+                "id": int(r["id"]),
+                "fileName": r["file_name"],
+                "contentType": r["content_type"],
+                "kind": r["kind"],
+                "sizeBytes": int(r["size_bytes"] or 0),
+                "createdAt": _iso(r["created_at"]),
+            }
+            for r in rows
+        ]
+    finally:
+        c.close()
+
+
 def _shape(post: dict[str, Any]) -> dict[str, Any]:
     """The wire shape for a single post. Mirrors what create returns, plus the
     fields a caller needs to reconcile against its own copy."""
@@ -257,6 +286,7 @@ def _shape(post: dict[str, Any]) -> dict[str, Any]:
         "externalId": _external_id_for(post_id),
         "externalEventId": f"knape-social-{post_id}",
         "editable": post.get("status") == EDITABLE_STATUS,
+        "media": _media_for(post_id),
     }
 
 
@@ -370,6 +400,101 @@ def retract_post(post_id: int) -> None:
         c.commit()
     finally:
         c.close()
+
+
+# Statuses this key may hand to Knape's review. `needs_changes` is included
+# because Peter asking for changes and the post coming back is the same loop —
+# refusing it would strand a post nobody can advance from outside.
+SUBMITTABLE = ("draft", "needs_changes")
+
+
+def submit_post(post_id: int) -> dict[str, Any]:
+    """draft | needs_changes -> pending_approval. Nothing further.
+
+    Approval itself stays on Knape's side; this key can only put a post INTO
+    the queue, never move it through. Guarded in the UPDATE for the same reason
+    as edit_post — a check-then-write could race Peter.
+    """
+    _require_own_post(post_id)
+
+    import time
+
+    placeholders = ",".join("?" for _ in SUBMITTABLE)
+    c = db.connect()
+    try:
+        row = c.execute(
+            f"UPDATE social_posts SET status='pending_approval', updated_at=? "
+            f"WHERE id=? AND deleted_at IS NULL AND status IN ({placeholders}) RETURNING *",
+            (time.time(), post_id, *SUBMITTABLE),
+        ).fetchone()
+        if not row:
+            raise NotDraft(_current_status(post_id))
+        c.commit()
+        return _shape(dict(row))
+    finally:
+        c.close()
+
+
+# ---------------------------------------------------------------------------
+# Activity
+# ---------------------------------------------------------------------------
+
+
+def list_events(post_id: int) -> list[dict[str, Any]]:
+    """The post's activity trail — Peter's approvals and change requests included.
+
+    ``kind`` is the cockpit's own vocabulary: comment | change_request |
+    approval. A change_request is the one worth reacting to: it means Knape
+    wants an edit before this goes out.
+    """
+    _require_own_post(post_id)
+    c = db.connect()
+    try:
+        rows = c.execute(
+            "SELECT id, kind, author, body, created_at FROM social_post_comments "
+            "WHERE post_id=? ORDER BY created_at, id",
+            (post_id,),
+        ).fetchall()
+        return [
+            {
+                "id": int(r["id"]),
+                "kind": r["kind"],
+                "author": r["author"],
+                "body": r["body"],
+                "createdAt": _iso(r["created_at"]),
+            }
+            for r in rows
+        ]
+    finally:
+        c.close()
+
+
+def add_event(post_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """Post a note onto the trail.
+
+    Allowed at any status, unlike edits: a note is a message to the client, not
+    a change to what publishes. Being able to reply to a change request on an
+    approved post is the point.
+    """
+    post = _require_own_post(post_id)
+    body = str(payload.get("body") or "").strip()
+    if not body:
+        raise ValueError("body is required")
+    if len(body) > 5000:
+        raise ValueError("Note is too long (5,000 characters max)")
+    author = str(payload.get("author") or payload.get("createdBy") or "").strip()
+    if not author:
+        # Falls back to whoever created the post, so a note is never anonymous
+        # in the client's activity feed.
+        author = str(post.get("created_by") or "crmx1")
+    row = social_store.add_comment(post_id, body, author)
+    return {
+        "id": int(row["id"]),
+        "kind": row["kind"],
+        "author": row["author"],
+        "body": row["body"],
+        "createdAt": _iso(row["created_at"]),
+    }
 
 
 # ---------------------------------------------------------------------------

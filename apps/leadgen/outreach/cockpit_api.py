@@ -2422,6 +2422,59 @@ def scheduler_write_delete(
     return Response(status_code=204)
 
 
+@app.post("/api/scheduler-write/{post_id}/submit")
+def scheduler_write_submit(
+    post_id: int,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Hand a draft to Knape's review. Approval stays on the client's side."""
+    from outreach import scheduler_write
+
+    _scheduler_write_guard(authorization)
+    try:
+        return scheduler_write.submit_post(post_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except scheduler_write.NotDraft as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Post is '{e}' — only a draft or a post needing changes can be submitted for approval",
+        ) from e
+
+
+@app.get("/api/scheduler-write/{post_id}/events")
+def scheduler_write_events(
+    post_id: int,
+    authorization: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    """The activity trail, including Knape's approvals and change requests."""
+    from outreach import scheduler_write
+
+    _scheduler_write_guard(authorization)
+    try:
+        return scheduler_write.list_events(post_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@app.post("/api/scheduler-write/{post_id}/events")
+def scheduler_write_add_event(
+    post_id: int,
+    body: dict[str, Any] = Body(...),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Add a note. Allowed at any status — a note is not a content change."""
+    from outreach import scheduler_write
+
+    _scheduler_write_guard(authorization)
+    try:
+        return scheduler_write.add_event(post_id, body)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @app.post("/api/scheduler-write/{post_id}/media")
 async def scheduler_write_media(
     post_id: int,
