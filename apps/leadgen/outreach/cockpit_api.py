@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -1183,6 +1183,18 @@ def _startup() -> None:
     except Exception as e:  # noqa: BLE001
         print(f"Cockpit: scheduler sync init failed: {e}", flush=True)
 
+    # Inbound writes from that same CRM. The route is always mounted; without
+    # SCHEDULER_WRITE_API_KEY set it answers 401 to everything, so an unset
+    # secret is a closed door rather than an open one.
+    try:
+        from outreach import scheduler_write
+
+        scheduler_write.init_db()
+        state = "armed" if scheduler_write.is_configured() else "closed (SCHEDULER_WRITE_API_KEY unset)"
+        print(f"Cockpit: inbound scheduler write {state}.", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"Cockpit: inbound scheduler write init failed: {e}", flush=True)
+
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
@@ -2304,6 +2316,75 @@ def social_media_delete(media_id: int, _user: dict[str, Any] = Depends(_auth_use
     except LookupError as e:
         raise _pm_error(e) from e
     return {"deleted": True}
+
+
+# ====================== Inbound scheduler write (crmx1) ======================
+#
+# The only write path here that is not behind a cockpit session. It exists so
+# staff in the designer's own CRM can put a post on Knape's calendar without
+# being given an account on this dashboard — the mirror image of the outbound
+# push in `scheduler_sync`.
+#
+# Auth is a shared bearer secret and lives in `scheduler_write.verify`, which
+# rejects everything when the secret is unset. Deliberately NOT `_auth_user`:
+# these callers have no session and never will.
+
+
+@app.post("/api/scheduler-write")
+def scheduler_write_create(
+    body: dict[str, Any] = Body(...),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Create a post from the designer's CRM.
+
+    Body: ``description`` (required, the post copy), ``scheduledAt`` (required,
+    ISO 8601 with an offset), ``title``, ``createdBy``, ``externalId``,
+    ``source``, ``timezone``.
+
+    Takes a raw dict rather than a Pydantic model on purpose: a model answers a
+    missing field with FastAPI's 422, and the contract agreed with the caller
+    is 401 / 400 / 200. Every field check lives in `scheduler_write` instead,
+    where a bad value is a ValueError and the handler below makes it a 400.
+    """
+    from outreach import scheduler_write
+
+    if not scheduler_write.verify(authorization):
+        raise HTTPException(status_code=401, detail="Invalid or missing scheduler write key")
+    try:
+        return scheduler_write.create_post(body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.post("/api/scheduler-write/{post_id}/media")
+async def scheduler_write_media(
+    post_id: int,
+    request: Request,
+    fileName: str = Query(default="creative"),  # noqa: N803 — caller's contract
+    contentType: str = Query(default=""),  # noqa: N803
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Attach a creative to a post created through /api/scheduler-write.
+
+    Raw body, same as the cockpit's own upload route: the bytes ARE the body
+    and the metadata rides in the query string, so nothing has to parse or
+    re-encode multipart on the way through.
+
+    404 covers both "no such post" and "not a post this integration created" —
+    the write key does not carry permission to edit Knape's own content.
+    """
+    from outreach import scheduler_write
+
+    if not scheduler_write.verify(authorization):
+        raise HTTPException(status_code=401, detail="Invalid or missing scheduler write key")
+    content = await request.body()
+    try:
+        media = scheduler_write.add_media(post_id, fileName, content, contentType)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"ok": True, "mediaId": int(media["id"]), "contentType": media["content_type"]}
 
 
 # ============================ Email outreach API ============================
