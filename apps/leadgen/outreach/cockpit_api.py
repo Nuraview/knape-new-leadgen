@@ -2356,6 +2356,72 @@ def scheduler_write_create(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+def _scheduler_write_guard(authorization: str | None) -> None:
+    from outreach import scheduler_write
+
+    if not scheduler_write.verify(authorization):
+        raise HTTPException(status_code=401, detail="Invalid or missing scheduler write key")
+
+
+@app.get("/api/scheduler-write/{post_id}")
+def scheduler_write_read(
+    post_id: int,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Read back one post this integration created."""
+    from outreach import scheduler_write
+
+    _scheduler_write_guard(authorization)
+    try:
+        return scheduler_write.read_post(post_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@app.patch("/api/scheduler-write/{post_id}")
+def scheduler_write_update(
+    post_id: int,
+    body: dict[str, Any] = Body(...),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Edit a draft this integration created. 409 once it has entered review."""
+    from outreach import scheduler_write
+
+    _scheduler_write_guard(authorization)
+    try:
+        return scheduler_write.edit_post(post_id, body)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except scheduler_write.NotDraft as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Post is '{e}', not a draft — it has entered Knape's review and can only be edited there",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.delete("/api/scheduler-write/{post_id}", status_code=204)
+def scheduler_write_delete(
+    post_id: int,
+    authorization: str | None = Header(default=None),
+) -> Response:
+    """Retract a draft this integration created. 409 once it has entered review."""
+    from outreach import scheduler_write
+
+    _scheduler_write_guard(authorization)
+    try:
+        scheduler_write.retract_post(post_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except scheduler_write.NotDraft as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Post is '{e}', not a draft — it has entered Knape's review and can only be withdrawn there",
+        ) from e
+    return Response(status_code=204)
+
+
 @app.post("/api/scheduler-write/{post_id}/media")
 async def scheduler_write_media(
     post_id: int,

@@ -213,6 +213,166 @@ def create_post(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Read / edit / retract, for this integration's own drafts
+# ---------------------------------------------------------------------------
+
+# The only status this key may edit. Once a post leaves `draft` it has entered
+# Knape's review — Peter has seen it — and changing it from outside would mean
+# the thing he approved is not the thing that publishes. Past this point the
+# post belongs to the client's dashboard.
+EDITABLE_STATUS = "draft"
+
+
+class NotDraft(Exception):
+    """The post has moved into review; the remote caller may no longer edit it."""
+
+
+def _iso(epoch: float | None) -> str | None:
+    if epoch is None:
+        return None
+    return dt.datetime.fromtimestamp(float(epoch), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _external_id_for(post_id: int) -> str | None:
+    c = db.connect()
+    try:
+        row = c.execute(
+            "SELECT external_id FROM scheduler_write_log WHERE post_id=? LIMIT 1", (post_id,)
+        ).fetchone()
+        return row["external_id"] if row else None
+    finally:
+        c.close()
+
+
+def _shape(post: dict[str, Any]) -> dict[str, Any]:
+    """The wire shape for a single post. Mirrors what create returns, plus the
+    fields a caller needs to reconcile against its own copy."""
+    post_id = int(post["id"])
+    return {
+        "id": post_id,
+        "title": post.get("title"),
+        "description": post.get("body") or "",
+        "scheduledAt": _iso(post.get("scheduled_at")),
+        "status": post.get("status"),
+        "externalId": _external_id_for(post_id),
+        "externalEventId": f"knape-social-{post_id}",
+        "editable": post.get("status") == EDITABLE_STATUS,
+    }
+
+
+def _require_own_post(post_id: int) -> dict[str, Any]:
+    """The row, if this integration created it and it still exists."""
+    if not owns_post(post_id):
+        raise LookupError("Post not found")
+    c = db.connect()
+    try:
+        row = c.execute(
+            "SELECT * FROM social_posts WHERE id=? AND deleted_at IS NULL", (post_id,)
+        ).fetchone()
+        if not row:
+            raise LookupError("Post not found")
+        return dict(row)
+    finally:
+        c.close()
+
+
+def read_post(post_id: int) -> dict[str, Any]:
+    return _shape(_require_own_post(post_id))
+
+
+def edit_post(post_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """Apply a partial edit, but only while the post is still a draft.
+
+    The status check is part of the UPDATE rather than a read before it. A
+    separate check would leave a window in which Peter approves the post
+    between the check passing and the write landing — rare at this volume, and
+    exactly the case the 409 exists to prevent, so it is not worth leaving open.
+    """
+    post = _require_own_post(post_id)
+
+    sets: dict[str, Any] = {}
+    if "title" in payload:
+        title = payload["title"]
+        sets["title"] = (str(title).strip() or None) if title is not None else None
+    if "description" in payload:
+        body = str(payload["description"] or "").strip()
+        if not body:
+            raise ValueError("description cannot be empty")
+        if len(body) > 3000:
+            raise ValueError("LinkedIn caps a post at 3,000 characters")
+        sets["body"] = body
+    if "scheduledAt" in payload:
+        if payload["scheduledAt"] is None:
+            # Clearing the time would leave the post live in Knape's table but
+            # absent from both calendars — a state neither side can see. If the
+            # intent is to withdraw it, that is what DELETE is for.
+            raise ValueError("scheduledAt cannot be cleared — DELETE the post instead")
+        sets["scheduled_at"] = _parse_instant(payload["scheduledAt"])
+
+    if not sets:
+        raise ValueError("Nothing to update — send title, description or scheduledAt")
+
+    if post["status"] != EDITABLE_STATUS:
+        raise NotDraft(post["status"])
+
+    import time
+
+    assigns = ", ".join(f"{k}=?" for k in sets)
+    c = db.connect()
+    try:
+        row = c.execute(
+            f"UPDATE social_posts SET {assigns}, updated_at=? "
+            "WHERE id=? AND deleted_at IS NULL AND status=? RETURNING *",
+            (*sets.values(), time.time(), post_id, EDITABLE_STATUS),
+        ).fetchone()
+        if not row:
+            # The guard bit: it existed a moment ago, so its status moved.
+            raise NotDraft(_current_status(post_id))
+        c.commit()
+        return _shape(dict(row))
+    finally:
+        c.close()
+
+
+def _current_status(post_id: int) -> str:
+    c = db.connect()
+    try:
+        row = c.execute("SELECT status FROM social_posts WHERE id=?", (post_id,)).fetchone()
+        return str(row["status"]) if row else "deleted"
+    finally:
+        c.close()
+
+
+def retract_post(post_id: int) -> None:
+    """Soft-delete a draft this integration created.
+
+    Soft, not hard, for two reasons: it keeps the audit trail the rest of the
+    cockpit relies on, and `scheduler_sync` reads exactly these rows to push a
+    ``cancelled`` event — so retracting here also clears the post from the
+    designer's own calendar within five minutes.
+    """
+    post = _require_own_post(post_id)
+    if post["status"] != EDITABLE_STATUS:
+        raise NotDraft(post["status"])
+
+    import time
+
+    now = time.time()
+    c = db.connect()
+    try:
+        row = c.execute(
+            "UPDATE social_posts SET deleted_at=?, updated_at=? "
+            "WHERE id=? AND deleted_at IS NULL AND status=? RETURNING id",
+            (now, now, post_id, EDITABLE_STATUS),
+        ).fetchone()
+        if not row:
+            raise NotDraft(_current_status(post_id))
+        c.commit()
+    finally:
+        c.close()
+
+
+# ---------------------------------------------------------------------------
 # Creatives
 # ---------------------------------------------------------------------------
 
