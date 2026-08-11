@@ -2395,7 +2395,10 @@ def scheduler_write_update(
     except scheduler_write.NotDraft as e:
         raise HTTPException(
             status_code=409,
-            detail=f"Post is '{e}', not a draft — it has entered Knape's review and can only be edited there",
+            detail=(
+                f"Post is '{e}' — only a draft, or one Knape has sent back for changes, "
+                "can be edited from here"
+            ),
         ) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -2417,7 +2420,10 @@ def scheduler_write_delete(
     except scheduler_write.NotDraft as e:
         raise HTTPException(
             status_code=409,
-            detail=f"Post is '{e}', not a draft — it has entered Knape's review and can only be withdrawn there",
+            detail=(
+                f"Post is '{e}', not a draft — once Knape has reviewed it, withdrawing "
+                "happens on their dashboard"
+            ),
         ) from e
     return Response(status_code=204)
 

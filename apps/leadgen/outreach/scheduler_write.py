@@ -216,11 +216,22 @@ def create_post(payload: dict[str, Any]) -> dict[str, Any]:
 # Read / edit / retract, for this integration's own drafts
 # ---------------------------------------------------------------------------
 
-# The only status this key may edit. Once a post leaves `draft` it has entered
-# Knape's review — Peter has seen it — and changing it from outside would mean
-# the thing he approved is not the thing that publishes. Past this point the
-# post belongs to the client's dashboard.
-EDITABLE_STATUS = "draft"
+# Statuses this key may edit.
+#
+# `needs_changes` is here because it means Knape has handed the post BACK and
+# asked for an edit — refusing it would let the remote side re-submit a post it
+# could not fix, which is the one outcome nobody wants. It does not weaken the
+# boundary: a post needing changes is explicitly not approved, and whatever
+# returns gets reviewed again.
+#
+# `pending_approval`, `approved` and `published` stay closed. Past those, the
+# thing Peter signed off on has to be the thing that publishes.
+EDITABLE_STATUSES = ("draft", "needs_changes")
+
+# Retraction stays narrower than editing. Withdrawing a draft nobody has looked
+# at is housekeeping; withdrawing one Peter has already reviewed and commented
+# on is a conversation, and there is a notes endpoint for that.
+RETRACTABLE_STATUSES = ("draft",)
 
 
 class NotDraft(Exception):
@@ -285,7 +296,7 @@ def _shape(post: dict[str, Any]) -> dict[str, Any]:
         "status": post.get("status"),
         "externalId": _external_id_for(post_id),
         "externalEventId": f"knape-social-{post_id}",
-        "editable": post.get("status") == EDITABLE_STATUS,
+        "editable": post.get("status") in EDITABLE_STATUSES,
         "media": _media_for(post_id),
     }
 
@@ -342,18 +353,22 @@ def edit_post(post_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     if not sets:
         raise ValueError("Nothing to update — send title, description or scheduledAt")
 
-    if post["status"] != EDITABLE_STATUS:
+    if post["status"] not in EDITABLE_STATUSES:
         raise NotDraft(post["status"])
 
     import time
 
     assigns = ", ".join(f"{k}=?" for k in sets)
+    editable = ",".join("?" for _ in EDITABLE_STATUSES)
     c = db.connect()
     try:
+        # Status is deliberately left alone. Editing a `needs_changes` post does
+        # not re-submit it — the caller decides when it goes back, via /submit,
+        # which is how the same edit behaves in the client's own dashboard.
         row = c.execute(
             f"UPDATE social_posts SET {assigns}, updated_at=? "
-            "WHERE id=? AND deleted_at IS NULL AND status=? RETURNING *",
-            (*sets.values(), time.time(), post_id, EDITABLE_STATUS),
+            f"WHERE id=? AND deleted_at IS NULL AND status IN ({editable}) RETURNING *",
+            (*sets.values(), time.time(), post_id, *EDITABLE_STATUSES),
         ).fetchone()
         if not row:
             # The guard bit: it existed a moment ago, so its status moved.
@@ -382,18 +397,19 @@ def retract_post(post_id: int) -> None:
     designer's own calendar within five minutes.
     """
     post = _require_own_post(post_id)
-    if post["status"] != EDITABLE_STATUS:
+    if post["status"] not in RETRACTABLE_STATUSES:
         raise NotDraft(post["status"])
 
     import time
 
     now = time.time()
+    retractable = ",".join("?" for _ in RETRACTABLE_STATUSES)
     c = db.connect()
     try:
         row = c.execute(
             "UPDATE social_posts SET deleted_at=?, updated_at=? "
-            "WHERE id=? AND deleted_at IS NULL AND status=? RETURNING id",
-            (now, now, post_id, EDITABLE_STATUS),
+            f"WHERE id=? AND deleted_at IS NULL AND status IN ({retractable}) RETURNING id",
+            (now, now, post_id, *RETRACTABLE_STATUSES),
         ).fetchone()
         if not row:
             raise NotDraft(_current_status(post_id))
