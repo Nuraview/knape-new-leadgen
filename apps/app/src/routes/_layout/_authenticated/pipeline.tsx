@@ -33,6 +33,10 @@ import type {
   Person,
 } from "@/fetchers/leadgen/types";
 import { ScrapeActivityBar } from "@/components/leadgen/scrape-activity-bar";
+import {
+  RATING_BADGE_CLASS,
+  ratingTone,
+} from "@/components/leadgen/lead-rating-card";
 import { LeadsPager } from "@/components/leadgen/leads-pager";
 import { Spinner } from "@/components/ui/spinner";
 import { useDelayedLoading } from "@/hooks/use-delayed-loading";
@@ -50,6 +54,15 @@ const PAGE_SIZE = 500;
 /** Cockpit `email_filter`: on a usable address, not on a contact row existing. */
 type EmailFilter = "any" | "has" | "none";
 
+/**
+ * Cockpit `sort`.
+ *
+ * "icp" is the model's judgement. "rating" is the client's own 0–10, set on the
+ * lead page — unrated leads sort last rather than as 0, because "not looked at
+ * yet" is not the same claim as "this one is useless".
+ */
+type SortKey = "icp" | "rating";
+
 function scoreTone(score: number | undefined): string {
   const s = score ?? 0;
   if (s >= 8) return "bg-emerald-500/15 text-emerald-500";
@@ -62,6 +75,7 @@ function RouteComponent() {
   const [batch, setBatch] = useState("");
   const [q, setQ] = useState("");
   const [emailFilter, setEmailFilter] = useState<EmailFilter>("any");
+  const [sort, setSort] = useState<SortKey>("icp");
   /*
    * Paging is SERVER-side: the cockpit slices and answers
    * { mode, items, total, page, page_size, pages }. This used to cap the render
@@ -89,13 +103,14 @@ function RouteComponent() {
   const list = useQuery({
     // `page` is part of the key: each page is its own request and its own
     // cache entry, so paging back is instant and does not refetch.
-    queryKey: ["leadgen", "accounts", mode, batch, q, emailFilter, page],
+    queryKey: ["leadgen", "accounts", mode, batch, q, emailFilter, sort, page],
     queryFn: () =>
       leadgen.get<AccountsResponse>("/api/accounts", {
         mode,
         data_batch: batch,
         q,
         email_filter: emailFilter,
+        sort,
         page: String(page),
         page_size: String(PAGE_SIZE),
       }),
@@ -258,6 +273,27 @@ function RouteComponent() {
             <option value="none">No email yet</option>
           </select>
 
+          {/*
+            Sort. Only on the companies list: a rating belongs to a company, so
+            ordering people by it would put every contact at one firm in a block
+            and say nothing about the person.
+          */}
+          {mode === "accounts" ? (
+            <select
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value as SortKey);
+                setPage(1);
+              }}
+              aria-label="Sort leads"
+              title="Fit score is the model's 0–10 ICP judgement. Your rating is the 0–10 score you gave the lead on its page — unrated leads sort last."
+              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+            >
+              <option value="icp">Sort: Fit score</option>
+              <option value="rating">Sort: Your rating</option>
+            </select>
+          ) : null}
+
           <input
             value={q}
             onChange={(e) => {
@@ -411,6 +447,20 @@ function RouteComponent() {
                       >
                         ICP {a.score?.toFixed(1) ?? "—"}
                       </span>
+                      {/*
+                        The client's own score, only when there is one. An
+                        unrated lead shows nothing rather than a placeholder —
+                        the absence is the honest signal, and a "—/10" next to
+                        the ICP badge reads as a second score of zero.
+                      */}
+                      {typeof a.client_rating === "number" ? (
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-xs tabular-nums ${RATING_BADGE_CLASS[ratingTone(a.client_rating)]}`}
+                          title={`You rated this lead ${a.client_rating}/10. Change it on the company page.`}
+                        >
+                          ★ {a.client_rating}/10
+                        </span>
+                      ) : null}
                       {a.location ? (
                         <span className="text-xs text-muted-foreground">
                           {a.location}

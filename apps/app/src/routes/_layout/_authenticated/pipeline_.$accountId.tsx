@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { leadgen } from "@/fetchers/leadgen/client";
 import { leadgenEmailExtras } from "@/fetchers/leadgen/emails";
 import { EmailPreview } from "@/components/leadgen/email-preview";
+import { LeadRatingCard } from "@/components/leadgen/lead-rating-card";
 
 type Evidence = {
   id: number;
@@ -57,6 +58,10 @@ type AccountDetail = {
   /** 0–10 per factor: industry_fit, signal_strength, role_relevance, company_fit. */
   swot?: Record<string, number>;
   evidence?: Evidence[];
+  /** The client's own 0–10 verdict; null when nobody has rated this company. */
+  client_rating?: number | null;
+  /** Unix seconds. */
+  client_rating_at?: number | null;
 };
 
 type Contact = {
@@ -316,6 +321,31 @@ function RouteComponent() {
                   </div>
                 ) : null}
               </section>
+
+              {/*
+                The client's own verdict, directly under the model's.
+
+                Placed here rather than at the bottom on purpose: it is read and
+                set while looking at the ICP score and the evidence, which is
+                the moment someone actually has an opinion about the lead.
+              */}
+              <LeadRatingCard
+                accountId={accountId}
+                company={a.company}
+                initialRating={a.client_rating ?? null}
+                onRated={(rating) => {
+                  // Patch the detail cache rather than refetching it: the value
+                  // came back from the write, and a refetch here would rebuild
+                  // the whole account payload for one integer.
+                  qc.setQueryData<AccountDetail>(
+                    ["leadgen", "account", accountId],
+                    (prev) => (prev ? { ...prev, client_rating: rating } : prev),
+                  );
+                  // The list DOES have to re-read: it can be sorted by rating,
+                  // and every page of it is a separate cache entry.
+                  qc.invalidateQueries({ queryKey: ["leadgen", "accounts"] });
+                }}
+              />
 
               {/* Who to write to. */}
               <section className="rounded-lg border border-border bg-card p-4">

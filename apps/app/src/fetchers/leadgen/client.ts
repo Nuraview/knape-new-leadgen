@@ -87,6 +87,13 @@ export const leadgen = {
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
 
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "PUT",
+      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, {
       method: "PATCH",

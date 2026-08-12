@@ -85,6 +85,13 @@ describe("leadgen proxy allow-list", () => {
       expect(isAllowed("POST", "/api/leads/9/email/approve")).toBe(true);
     });
 
+    it("the client's own rating on a lead", () => {
+      expect(isAllowed("PUT", "/api/leads/9/rating")).toBe(true);
+      // PUT is scoped to /api/leads/ and nothing else.
+      expect(isAllowed("PUT", "/api/accounts/9")).toBe(false);
+      expect(isAllowed("PUT", "/api/settings")).toBe(false);
+    });
+
     it("health, for the connection banner", () => {
       expect(isAllowed("GET", "/api/health")).toBe(true);
     });

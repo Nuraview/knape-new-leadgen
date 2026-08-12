@@ -509,6 +509,22 @@ def _init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_evidence_account ON evidence(account_id);
 
+            -- The client's own 0–10 verdict on a lead.
+            --
+            -- Keyed on the normalized company name, NOT accounts.id: the sync
+            -- paths rebuild the accounts table with DELETE + INSERT, so account
+            -- ids are not stable across a scrape and anything stored against
+            -- them is lost. The company key is the same identity the lead
+            -- records use, so a rating survives re-scraping and re-scoring.
+            CREATE TABLE IF NOT EXISTS lead_feedback (
+                lead_key TEXT PRIMARY KEY,
+                company TEXT NOT NULL DEFAULT '',
+                rating INTEGER,
+                rated_by TEXT NOT NULL DEFAULT '',
+                rated_at DOUBLE PRECISION NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_lead_feedback_rating ON lead_feedback(rating);
+
             CREATE TABLE IF NOT EXISTS sweeps (
                 id BIGSERIAL PRIMARY KEY,
                 ran_at DOUBLE PRECISION NOT NULL,
@@ -1524,6 +1540,9 @@ def summary(
             "facet_top_incumbent_accounts": int(facet_top_n),
             "source_mix": {"linkedin": li, "non_linkedin": nl},
             "linkedin_pct": linkedin_pct,
+            # Client-assigned quality, deliberately separate from the ICP score:
+            # one is what the model thinks, the other is what the client says.
+            "client_ratings": _lead_feedback_summary(),
             "last_sweep_at": float(sweep["ran_at"]) if sweep else None,
             "with_company": with_company,
             "with_website": with_website,
@@ -1657,6 +1676,30 @@ def _paginate(items: list[dict[str, Any]], page: int, page_size: int) -> dict[st
     }
 
 
+def _lead_feedback_summary() -> dict[str, Any]:
+    """Rating headline for the dashboard; never fatal to the summary payload."""
+    from outreach import lead_feedback
+
+    try:
+        return lead_feedback.rating_summary()
+    except Exception:  # a missing table must not blank the whole dashboard
+        return {"rated": 0, "top_rated": 0, "avg_rating": None}
+
+
+def _lead_ratings_by_key() -> dict[str, int]:
+    """Client ratings for bulk-joining onto a page of accounts.
+
+    Never fatal: an instance whose ``lead_feedback`` table has not been created
+    yet should show an unrated list, not a 500 on the only lead view there is.
+    """
+    from outreach import lead_feedback
+
+    try:
+        return lead_feedback.ratings_by_key()
+    except Exception:
+        return {}
+
+
 @app.get("/api/accounts")
 def list_accounts(
     _user: dict[str, Any] = Depends(_auth_user),
@@ -1707,6 +1750,7 @@ def list_accounts(
             """,
             tuple(args),
         ).fetchall()
+        ratings = _lead_ratings_by_key()
         seen_company_keys: set[str] = set()
         items: list[dict[str, Any]] = []
         for row in rows:
@@ -1717,7 +1761,18 @@ def list_accounts(
             if company_key in seen_company_keys:
                 continue
             seen_company_keys.add(company_key)
+            item["client_rating"] = ratings.get(company_key)
             items.append(item)
+        if sort == "rating":
+            # Unrated leads sort last rather than as 0 — "not looked at yet" is
+            # not the same claim as "the client said this one is useless".
+            items.sort(
+                key=lambda it: (
+                    it.get("client_rating") is None,
+                    -(it.get("client_rating") or 0),
+                    -float(it.get("score") or 0),
+                )
+            )
         if mode == "people":
             where_sql = " AND ".join(where)
             people_sql_where = (
@@ -1816,9 +1871,49 @@ def account_detail(account_id: int, _user: dict[str, Any] = Depends(_auth_user))
         out["swot"] = json.loads(str(out.get("swot_json") or "{}"))
         out["evidence"] = [dict(e) for e in evidence]
         out["outreach_sequence"] = _outreach_sequence_for_account(out, contacts_preview)
+        from outreach import lead_feedback
+
+        feedback = lead_feedback.get_rating(str(out.get("company") or ""))
+        out["client_rating"] = (feedback or {}).get("rating")
+        out["client_rating_at"] = (feedback or {}).get("rated_at")
         return out
     finally:
         conn.close()
+
+
+class LeadRatingInput(BaseModel):
+    #: 0–10, or null to clear. 0 is a real score ("useless"), so it is not
+    #: interchangeable with "unrated".
+    rating: int | None = None
+
+
+def _account_company(account_id: int) -> str:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT company FROM accounts WHERE id = ?", (account_id,)
+        ).fetchone()
+        return str((row or {}).get("company") or "").strip()
+    finally:
+        conn.close()
+
+
+@app.put("/api/leads/{account_id}/rating")
+def lead_rating_set(
+    account_id: int, body: LeadRatingInput, user: dict[str, Any] = Depends(_auth_user)
+) -> dict[str, Any]:
+    """Record the client's 0–10 verdict on a lead (null clears it).
+
+    Stored against the company key, not this account id — see
+    ``outreach.lead_feedback`` for why that distinction matters.
+    """
+    from outreach import lead_feedback
+
+    company = _account_company(account_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Account not found")
+    saved = lead_feedback.set_rating(company, body.rating, rated_by=str(user.get("email") or ""))
+    return {"company": company, "rating": (saved or {}).get("rating"), "feedback": saved}
 
 
 @app.get("/api/accounts/{account_id}/contacts")

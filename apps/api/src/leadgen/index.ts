@@ -142,6 +142,11 @@ const ALLOWED: ReadonlyArray<{ method: string; prefix: string }> = [
   { method: "GET", prefix: "/api/leads/" },
   { method: "POST", prefix: "/api/leads/" },
 
+  // The client's own 0–10 rating on a lead. PUT because it is a single
+  // idempotent value — writing 7 twice leaves one 7, and null clears it. The
+  // only PUT under /api/leads/, so the prefix stays as narrow as the feature.
+  { method: "PUT", prefix: "/api/leads/" },
+
   // The whole email surface: dashboard stats, send queue, sent log, bounced,
   // outbox, IMAP inbox, compose. Broad on purpose — this is one screen with
   // many panes, and enumerating twenty sub-paths would go stale.

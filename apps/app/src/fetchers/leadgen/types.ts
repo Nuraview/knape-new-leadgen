@@ -36,6 +36,15 @@ export type Account = {
   data_batch?: string;
   contacts_count?: number;
   emails_count?: number;
+  /**
+   * The client's own 0–10 verdict, null when nobody has rated this company.
+   *
+   * Deliberately NOT the ICP score: `score` is what the model inferred from the
+   * research, this is what the person who knows the business says. Null and 0
+   * are different claims — "not looked at yet" versus "useless" — which is why
+   * this is nullable rather than defaulting to 0.
+   */
+  client_rating?: number | null;
 };
 
 export type Person = {
