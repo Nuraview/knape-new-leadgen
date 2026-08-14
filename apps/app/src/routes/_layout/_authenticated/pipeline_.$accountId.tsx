@@ -17,7 +17,7 @@
  * Outreach, so a mis-click drafts a bad email rather than delivering one.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import Layout from "@/components/common/layout";
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { leadgen } from "@/fetchers/leadgen/client";
+import type { AccountsResponse } from "@/fetchers/leadgen/types";
 import { leadgenEmailExtras } from "@/fetchers/leadgen/emails";
 import { EmailPreview } from "@/components/leadgen/email-preview";
 import { LeadRatingCard } from "@/components/leadgen/lead-rating-card";
@@ -154,11 +155,22 @@ function RouteComponent() {
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["leadgen", "lead-email", accountId] });
 
+  /*
+   * The cockpit answers 200 whether or not it actually reached OpenAI: with no
+   * API key, draft_email_sequence() falls back to the canned template sequence
+   * and reports provider="template". That failure is invisible — a draft
+   * appears, it just is not the AI's — and it ran for ten days before anyone
+   * said "Draft with AI is not working". Keep the provider and say so.
+   */
   const draft = useMutation({
     mutationFn: () =>
-      leadgen.post(`/api/leads/${accountId}/email/draft`, angle ? { angle } : {}),
+      leadgen.post<{ provider?: string }>(
+        `/api/leads/${accountId}/email/draft`,
+        angle ? { angle } : {},
+      ),
     onSuccess: invalidate,
   });
+  const usedTemplate = draft.data?.provider === "template";
   const approve = useMutation({
     mutationFn: () =>
       leadgen.post(`/api/leads/${accountId}/email/approve`, {
@@ -194,13 +206,19 @@ function RouteComponent() {
 
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
         <SidebarTrigger className="-ms-1" />
-        <a
-          href="/pipeline"
+        {/*
+          Link, not <a href>. A raw href here did a full document load on every
+          trip back to the list: the bundle was re-fetched, every cached query
+          was thrown away and the list re-requested all 500 rows from scratch.
+          Rate a lead, press back, watch the sheet reload — that was this line.
+        */}
+        <Link
+          to="/pipeline"
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
           Leads
-        </a>
+        </Link>
         <h1 className="truncate text-lg font-semibold">
           {account.isLoading ? "…" : (a?.company ?? "Lead")}
         </h1>
@@ -341,9 +359,37 @@ function RouteComponent() {
                     ["leadgen", "account", accountId],
                     (prev) => (prev ? { ...prev, client_rating: rating } : prev),
                   );
-                  // The list DOES have to re-read: it can be sorted by rating,
-                  // and every page of it is a separate cache entry.
-                  qc.invalidateQueries({ queryKey: ["leadgen", "accounts"] });
+                  /*
+                   * Patch the list cache too — do NOT invalidate it.
+                   *
+                   * Invalidating marked every cached page of the leads list
+                   * stale, so pressing back after rating re-fetched 500 rows
+                   * through the proxy and put the "Loading data…" overlay up.
+                   * Rating one lead should not cost a round trip for the other
+                   * 499. The badge on the row is the only thing that changed,
+                   * and we already know its new value.
+                   *
+                   * Sorted by rating, the row keeps its old position until the
+                   * next natural refetch. That is deliberate: re-ordering the
+                   * list under someone who is working down it is worse than a
+                   * row sitting one place off.
+                   */
+                  qc.setQueriesData<AccountsResponse>(
+                    { queryKey: ["leadgen", "accounts"] },
+                    (prev) => {
+                      // People pages carry contact ids, not account ids —
+                      // matching on `id` there would rate the wrong row.
+                      if (!prev || prev.mode === "people") return prev;
+                      return {
+                        ...prev,
+                        items: prev.items.map((row) =>
+                          String(row.id) === String(accountId)
+                            ? { ...row, client_rating: rating }
+                            : row,
+                        ),
+                      };
+                    },
+                  );
                 }}
               />
 
@@ -492,6 +538,14 @@ function RouteComponent() {
                     {String((draft.error || approve.error) as Error)}
                   </p>
                 )}
+
+                {usedTemplate ? (
+                  <p className="mt-2 text-xs text-amber-500">
+                    This draft came from the built-in template, not the AI — the
+                    cockpit has no OpenAI key configured, so it fell back. The
+                    copy below is generic and needs editing before it goes out.
+                  </p>
+                ) : null}
 
                 {steps.length ? (
                   <div className="mt-3 flex items-center gap-2 text-xs">
