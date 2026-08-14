@@ -2644,6 +2644,10 @@ class EmailDraftInput(BaseModel):
     to_email: str | None = None
     regenerate: bool = False
     angle: str | None = None  # messaging angle key (else auto-picked per lead)
+    # Who the email greets. Falls back to the best contact's name when unset.
+    # Sent even when a contact exists, because the stored value is a full name
+    # and an opener wants the first name only.
+    person_name: str | None = None
 
 
 class EmailApproveInput(BaseModel):
@@ -2748,6 +2752,10 @@ def lead_email_get(account_id: int, _user: dict[str, Any] = Depends(_auth_user))
     return {
         "sequence": seq,
         "suggested_email": suggested,
+        # The name the drafter WOULD use, from the same best-contact lookup, so
+        # the lead page can show it rather than making the user retype what the
+        # scraper already found. Empty when no contact was ever found.
+        "suggested_person_name": (ctx[0].get("person_name") or "") if ctx else "",
         "inboxes": inboxes,
         "suggested_inbox_id": suggested_inbox,
         "angles": list_angles(),
@@ -2793,6 +2801,14 @@ def lead_email_draft(
         raise HTTPException(status_code=404, detail="Account not found")
     lead, _contact = ctx
     to_email = (body.to_email or lead.get("email") or "").strip()
+    # A name typed on the lead page wins over the scraped contact: the person
+    # sending knows who they are writing to, and plenty of accounts have no
+    # contact row at all — those drafts open "Hi <company>," without this.
+    person_name = (
+        body.person_name if body.person_name is not None else lead.get("person_name")
+    )
+    person_name = str(person_name or "").strip()
+    lead = {**lead, "person_name": person_name}
     existing = email_store.get_sequence_for_account(account_id)
     if existing and existing["status"] not in ("draft", "failed") and not body.regenerate:
         return {"sequence": existing, "provider": existing.get("provider"), "note": "already_sent"}
@@ -2801,7 +2817,7 @@ def lead_email_draft(
     seq = email_store.upsert_draft(
         account_id=account_id,
         company=str(lead.get("company") or ""),
-        person_name=str(lead.get("person_name") or ""),
+        person_name=person_name,
         to_email=to_email,
         from_email=OUTREACH_FROM_EMAIL,
         provider=provider,

@@ -98,6 +98,8 @@ type EmailPayload = {
     steps?: Step[] | null;
   } | null;
   suggested_email?: string;
+  /** Name the cockpit's best-contact lookup found; "" when there is no contact. */
+  suggested_person_name?: string;
   suggested_angle?: string;
   suggested_inbox_id?: number;
   angles?: { key: string; name: string }[];
@@ -108,6 +110,24 @@ type EmailPayload = {
     enabled?: number | null;
   }[];
 };
+
+/**
+ * First name only, for an email opener.
+ *
+ * Contacts are scraped as full names ("Dana Whitfield") but a cold email opens
+ * "Hi Dana,". Honorifics are skipped so a scraped "Dr. Dana Whitfield" does not
+ * come out as "Hi Dr.,".
+ */
+const HONORIFICS = new Set(["mr", "mrs", "ms", "miss", "dr", "prof", "sir"]);
+
+function firstNameOf(full: string): string {
+  return (
+    full
+      .trim()
+      .split(/\s+/)
+      .find((part) => part && !HONORIFICS.has(part.replace(/\.$/, "").toLowerCase())) ?? ""
+  );
+}
 
 const FACTOR_LABEL: Record<string, string> = {
   industry_fit: "Industry fit",
@@ -127,6 +147,8 @@ function RouteComponent() {
    *  already decided" — auto-rotation at send time, and the contact it picked. */
   const [inboxId, setInboxId] = useState<number | "">("");
   const [toEmail, setToEmail] = useState("");
+  /** Who the opener greets. Seeded from the scraped contact when there is one. */
+  const [firstName, setFirstName] = useState("");
 
   const account = useQuery({
     queryKey: ["leadgen", "account", accountId],
@@ -159,7 +181,15 @@ function RouteComponent() {
     if (!d) return;
     setInboxId((i) => (i === "" ? (d.suggested_inbox_id ?? "") : i));
     setToEmail((t) => t || d.sequence?.to_email || d.suggested_email || "");
+    // Whatever the last draft greeted, else the scraped contact's name.
+    setFirstName(
+      (n) =>
+        n || firstNameOf(d.sequence?.person_name || d.suggested_person_name || ""),
+    );
   }, [email.data]);
+
+  /** What the scraper found, for the placeholder and the "from contacts" note. */
+  const suggestedFirst = firstNameOf(email.data?.suggested_person_name || "");
 
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["leadgen", "lead-email", accountId] });
@@ -173,10 +203,15 @@ function RouteComponent() {
    */
   const draft = useMutation({
     mutationFn: () =>
-      leadgen.post<{ provider?: string }>(
-        `/api/leads/${accountId}/email/draft`,
-        angle ? { angle } : {},
-      ),
+      leadgen.post<{ provider?: string }>(`/api/leads/${accountId}/email/draft`, {
+        ...(angle ? { angle } : {}),
+        /*
+         * Only once the payload has loaded. Sending "" before the seed effect
+         * has run would tell the cockpit "greet nobody" and throw away the
+         * contact name it had already found.
+         */
+        ...(email.data ? { person_name: firstName.trim() } : {}),
+      }),
     onSuccess: invalidate,
   });
   const usedTemplate = draft.data?.provider === "template";
@@ -502,6 +537,31 @@ function RouteComponent() {
                   line just stated whatever the cockpit had already decided.
                 */}
                 <div className="mt-3 flex flex-wrap items-end gap-3">
+                  {/*
+                    First name, because the opener greets a person.
+
+                    With no contact row the drafter has nothing to greet and
+                    writes "Hi <company>," — correct, and obviously a robot.
+                    Typing a name here is usually the difference between an
+                    email that reads as written and one that reads as sent.
+                  */}
+                  <label className="min-w-40 flex-1">
+                    <span className="text-xs text-muted-foreground">
+                      First name
+                      {suggestedFirst && firstName === suggestedFirst ? (
+                        <span className="ms-1.5 text-emerald-500">
+                          from contacts
+                        </span>
+                      ) : null}
+                    </span>
+                    <input
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      disabled={sent}
+                      placeholder={suggestedFirst || "no name found"}
+                      className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                    />
+                  </label>
                   <label className="min-w-56 flex-1">
                     <span className="text-xs text-muted-foreground">To</span>
                     <input
