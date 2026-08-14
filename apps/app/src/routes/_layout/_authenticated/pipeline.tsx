@@ -20,7 +20,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, ExternalLink, Users } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "@/components/common/layout";
 import PageTitle from "@/components/page-title";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -63,6 +63,33 @@ type EmailFilter = "any" | "has" | "none";
  */
 type SortKey = "icp" | "rating";
 
+/**
+ * Where the reader was in the list, remembered across navigations.
+ *
+ * Opening a lead unmounts this route, so every piece of list state — the page
+ * you were on, the filters, and how far you had scrolled — was reset to its
+ * initial value on the way back. Someone rating leads down a long list landed
+ * on row 1 of page 1 after each one and had to scroll back down to find their
+ * place. That is the whole "it goes again to the first lead" report.
+ *
+ * Module scope, deliberately, not a store or a search param:
+ *
+ *   - It must survive an unmount, so useState and useRef are out.
+ *   - It must NOT survive a full reload — a fresh visit to Leads should open
+ *     at the top of an unfiltered page 1, not resume a week-old scroll offset.
+ *
+ * A module variable is exactly that lifetime, and costs no dependency.
+ */
+const remembered = {
+  mode: "accounts" as "accounts" | "people",
+  batch: "",
+  q: "",
+  emailFilter: "any" as EmailFilter,
+  sort: "icp" as SortKey,
+  page: 1,
+  scrollTop: 0,
+};
+
 function scoreTone(score: number | undefined): string {
   const s = score ?? 0;
   if (s >= 8) return "bg-emerald-500/15 text-emerald-500";
@@ -71,11 +98,15 @@ function scoreTone(score: number | undefined): string {
 }
 
 function RouteComponent() {
-  const [mode, setMode] = useState<"accounts" | "people">("accounts");
-  const [batch, setBatch] = useState("");
-  const [q, setQ] = useState("");
-  const [emailFilter, setEmailFilter] = useState<EmailFilter>("any");
-  const [sort, setSort] = useState<SortKey>("icp");
+  // Seeded from the remembered position, so coming back from a lead resumes
+  // rather than restarts. First visit of the session gets the defaults.
+  const [mode, setMode] = useState<"accounts" | "people">(remembered.mode);
+  const [batch, setBatch] = useState(remembered.batch);
+  const [q, setQ] = useState(remembered.q);
+  const [emailFilter, setEmailFilter] = useState<EmailFilter>(
+    remembered.emailFilter,
+  );
+  const [sort, setSort] = useState<SortKey>(remembered.sort);
   /*
    * Paging is SERVER-side: the cockpit slices and answers
    * { mode, items, total, page, page_size, pages }. This used to cap the render
@@ -86,9 +117,31 @@ function RouteComponent() {
    * `page` here is only what we ASK for. What gets rendered is the page the
    * server says it served, because it clamps an out-of-range request.
    */
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(remembered.page);
   /** The scrolling region, so a page turn can return to the top of the list. */
   const listRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * Every filter control calls this instead of setPage(1) on its own.
+   * Changing a filter re-makes the list, so the remembered offset no longer
+   * points at anything the reader was looking at — resuming it would drop them
+   * into the middle of a result set they have never seen.
+   */
+  const resetToFirstPage = () => {
+    setPage(1);
+    remembered.scrollTop = 0;
+    listRef.current?.scrollTo({ top: 0 });
+  };
+
+  // Keep the remembered position in step with what is on screen.
+  useEffect(() => {
+    remembered.mode = mode;
+    remembered.batch = batch;
+    remembered.q = q;
+    remembered.emailFilter = emailFilter;
+    remembered.sort = sort;
+    remembered.page = page;
+  }, [mode, batch, q, emailFilter, sort, page]);
 
   const batches = useQuery({
     queryKey: ["leadgen", "batches"],
@@ -169,6 +222,22 @@ function RouteComponent() {
    */
   const showOverlay = useDelayedLoading(list.isFetching);
 
+  /*
+   * Put the reader back where they were, once — and only once the rows are
+   * actually in the DOM. Setting scrollTop before the list has painted is a
+   * no-op: the scroller is still shorter than the offset being asked for, so
+   * the browser clamps it to 0 and the restore silently does nothing.
+   */
+  const restoredScroll = useRef(false);
+  useEffect(() => {
+    if (restoredScroll.current || !items.length || !remembered.scrollTop) return;
+    restoredScroll.current = true;
+    const el = listRef.current;
+    if (!el) return;
+    // One frame after paint, so the rows have height to scroll through.
+    requestAnimationFrame(() => el.scrollTo({ top: remembered.scrollTop }));
+  }, [items.length]);
+
   const pager = (
     <LeadsPager
       info={pageInfo}
@@ -176,6 +245,7 @@ function RouteComponent() {
         setPage(next);
         // A page turn that leaves the reader halfway down the previous page
         // reads as a broken jump. The list region is the scroller, not window.
+        remembered.scrollTop = 0;
         listRef.current?.scrollTo({ top: 0 });
       }}
       busy={list.isFetching}
@@ -212,7 +282,7 @@ function RouteComponent() {
                 type="button"
                 onClick={() => {
                   setMode(value);
-                  setPage(1);
+                  resetToFirstPage();
                 }}
                 className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-sm ${
                   mode === value
@@ -234,7 +304,7 @@ function RouteComponent() {
                 type="button"
                 onClick={() => {
                   setBatch(chip.value);
-                  setPage(1);
+                  resetToFirstPage();
                 }}
                 className={`rounded-md border px-2.5 py-1 text-sm ${
                   batch === chip.value
@@ -263,7 +333,7 @@ function RouteComponent() {
             value={emailFilter}
             onChange={(e) => {
               setEmailFilter(e.target.value as EmailFilter);
-              setPage(1);
+              resetToFirstPage();
             }}
             aria-label="Filter by email address"
             className="ms-auto h-9 rounded-md border border-border bg-background px-2 text-sm"
@@ -283,7 +353,7 @@ function RouteComponent() {
               value={sort}
               onChange={(e) => {
                 setSort(e.target.value as SortKey);
-                setPage(1);
+                resetToFirstPage();
               }}
               aria-label="Sort leads"
               title="Fit score is the model's 0–10 ICP judgement. Your rating is the 0–10 score you gave the lead on its page — unrated leads sort last."
@@ -298,14 +368,20 @@ function RouteComponent() {
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
-              setPage(1);
+              resetToFirstPage();
             }}
             placeholder="Search leads…"
             className="h-9 w-64 rounded-md border border-border bg-background px-3 text-sm"
           />
         </div>
 
-        <div ref={listRef} className="flex-1 overflow-auto p-5">
+        <div
+          ref={listRef}
+          onScroll={(e) => {
+            remembered.scrollTop = e.currentTarget.scrollTop;
+          }}
+          className="flex-1 overflow-auto p-5"
+        >
           {/*
             Live scraper state, above the list.
 

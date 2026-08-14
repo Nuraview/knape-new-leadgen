@@ -79,6 +79,15 @@ type Contact = {
 
 type Step = { step_index?: number; subject?: string; body?: string };
 
+/**
+ * GET /api/leads/{id}/email.
+ *
+ * The steps are NESTED INSIDE `sequence` — the cockpit hydrates them onto the
+ * sequence row (email_store._hydrate) and there is no top-level `steps` key.
+ * This type used to declare one, so `email.data.steps` was always undefined:
+ * every drafted email rendered as "No sequence drafted yet" and Approve stayed
+ * disabled forever, because both read off that empty array.
+ */
 type EmailPayload = {
   sequence?: {
     id?: number;
@@ -86,8 +95,8 @@ type EmailPayload = {
     to_email?: string;
     from_email?: string;
     status?: string;
+    steps?: Step[] | null;
   } | null;
-  steps?: Step[] | null;
   suggested_email?: string;
   suggested_angle?: string;
   suggested_inbox_id?: number;
@@ -194,8 +203,8 @@ function RouteComponent() {
   });
 
   const a = account.data;
-  const steps = email.data?.steps ?? [];
   const seq = email.data?.sequence;
+  const steps = seq?.steps ?? [];
   const approved = seq?.status === "approved";
   // Once it is out the door the recipient and mailbox are history, not settings.
   const sent = seq?.status === "sent" || seq?.status === "sending";
