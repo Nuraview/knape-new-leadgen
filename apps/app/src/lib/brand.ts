@@ -91,6 +91,40 @@ declare global {
 }
 
 /**
+ * The signature a white-labelled instance starts from before /api/config lands.
+ *
+ * The fallbacks above are the vendor's own — a named person's photograph, mobile
+ * number, calendar link and LinkedIn profile. Inheriting those is right for a
+ * build with no brand at all, and wrong the moment the product has been renamed:
+ * the scheduler paints the LinkedIn author from `signature.personName`, so every
+ * page load of a client's own scheduler opened on "VARSHITH KM" for the ~200ms
+ * until the config request answered.
+ *
+ * So a renamed instance seeds the personal fields empty and the name from the
+ * business. It is a placeholder for a fraction of a second either way; the point
+ * is that the placeholder is not somebody else's identity. The server applies
+ * the same rule permanently — see vendorDetail in api/src/utils/get-brand.ts.
+ */
+function seedSignature(seed: Partial<Brand>): BrandSignature {
+  const name = seed.shortName || seed.name || FALLBACK_BRAND.shortName;
+  return {
+    personName: name,
+    personTitle: seed.name || FALLBACK_BRAND.name,
+    photoUrl: null,
+    phone: null,
+    schedulingUrl: null,
+    linkedinUrl: null,
+    linkedinLabel: null,
+    websiteUrl: seed.marketingUrl || "",
+    websiteLabel: (seed.marketingUrl || "")
+      .replace(/^https?:\/\//, "")
+      .replace(/\/+$/, ""),
+    legalLine: null,
+    addressLine: null,
+  };
+}
+
+/**
  * The build-time seed, merged over the fallbacks.
  *
  * Shallow-merged except for `signature`, which is merged one level deeper —
@@ -101,9 +135,16 @@ export function getSeedBrand(): Brand {
   const seed = typeof window === "undefined" ? undefined : window.__BRAND__;
   if (!seed) return FALLBACK_BRAND;
 
+  // Renaming the product is what makes the instance somebody else's; there is no
+  // separate flag to forget to set. Matches getBrand()'s test on the server.
+  const isVendor = (seed.name ?? FALLBACK_BRAND.name) === FALLBACK_BRAND.name;
+
   return {
     ...FALLBACK_BRAND,
     ...seed,
-    signature: { ...FALLBACK_BRAND.signature, ...(seed.signature ?? {}) },
+    signature: {
+      ...(isVendor ? FALLBACK_BRAND.signature : seedSignature(seed)),
+      ...(seed.signature ?? {}),
+    },
   };
 }

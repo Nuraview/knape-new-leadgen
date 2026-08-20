@@ -7,9 +7,14 @@
  * hand-porting every future fix across N diverging trees. So the user-visible
  * ones read from here instead.
  *
- * EVERY field defaults to NuraView's current value. That is deliberate: an
- * instance with no BRAND_* env set must render byte-identically to how it did
+ * Almost every field defaults to NuraView's current value. That is deliberate:
+ * an instance with no BRAND_* env set must render byte-identically to how it did
  * before this file existed, so shipping it cannot change crmx1.
+ *
+ * The exception is the signature's personal details — a photograph, a mobile
+ * number, a calendar link. Those default to NuraView's only ON NuraView's own
+ * deployment, because a fallback there is not a bland placeholder but a specific
+ * human being's contact details in a stranger's inbox. See vendorDetail.
  *
  * Served over /api/config rather than baked into the bundle at build time, for
  * the reason already learned the hard way with VITE_API_URL (see the VAPID note
@@ -27,6 +32,50 @@ function env(name: string, fallback: string): string {
 function envOrNull(name: string): string | null {
   const value = process.env[name];
   return value && value.trim() ? value.trim() : null;
+}
+
+/** The vendor's own product name — how this file tells its deployment from a client's. */
+const VENDOR_NAME = "NuraView";
+
+/**
+ * A fallback that belongs to the vendor personally rather than to the product.
+ *
+ * Everything else in this file can safely default to NuraView's value: a client
+ * who never sets BRAND_TAGLINE gets a bland tagline, and that is cosmetic. The
+ * signature is not cosmetic. It carries a real person's photograph, mobile
+ * number, calendar link and LinkedIn profile, and it is appended to mail that
+ * leaves the building — so the same "default to NuraView" rule that is harmless
+ * for a tagline was signing a client's cold outreach with the vendor's face.
+ *
+ * That is not hypothetical. Knape's instance sets every BRAND_SIGNATURE_* key to
+ * "" and still served the vendor's headshot, mobile number, TidyCal link and
+ * "registered as Varshith KM LLC" on every /api/config response, for two
+ * compounding reasons — env() reads "" as absent, and Vercel refuses to store an
+ * empty environment variable at all, so on that platform a client CANNOT express
+ * "I have no phone number to publish" by blanking one.
+ *
+ * Hence the rule: a personal detail falls back ONLY on the vendor's own
+ * deployment. Once the instance has been renamed, an unset variable means "this
+ * client has not given us that detail", the field is null, and the signature
+ * template omits the row — which it already knows how to do.
+ *
+ * "none" remains an explicit opt-out for the vendor's instance too, matching
+ * BRAND_LEGACY_BASE_URL and BRAND_ANALYTICS_DOMAINS.
+ */
+function vendorDetail(
+  name: string,
+  vendorValue: string,
+  isVendor: boolean,
+): string | null {
+  const raw = (process.env[name] ?? "").trim();
+  if (raw.toLowerCase() === "none") return null;
+  if (raw) return raw;
+  return isVendor ? vendorValue : null;
+}
+
+/** "https://knapesolutions.com/" -> "knapesolutions.com". Mirrors brand.py's site_label(). */
+function hostLabel(url: string): string {
+  return url.replace(/^https?:\/\//, "").replace(/\/+$/, "");
 }
 
 /**
@@ -99,7 +148,15 @@ export type Brand = {
 };
 
 export function getBrand(): Brand {
-  const name = env("BRAND_NAME", "NuraView");
+  const name = env("BRAND_NAME", VENDOR_NAME);
+  /*
+   * Renaming the product is what makes an instance somebody else's. There is no
+   * separate "this is a client" flag to forget to set, which matters because the
+   * failure mode of forgetting one is the vendor's phone number in a stranger's
+   * inbox. See vendorDetail.
+   */
+  const isVendor = name === VENDOR_NAME;
+  const marketingUrl = env("BRAND_MARKETING_URL", "https://www.nuraview.com");
 
   return {
     name,
@@ -120,7 +177,7 @@ export function getBrand(): Brand {
     // instance that sets nothing is visually unchanged.
     accentColor: env("BRAND_ACCENT_COLOR", "#262626"),
     accentForeground: env("BRAND_ACCENT_FOREGROUND", "#fafafa"),
-    marketingUrl: env("BRAND_MARKETING_URL", "https://www.nuraview.com"),
+    marketingUrl,
     supportEmail: envOrNull("BRAND_SUPPORT_EMAIL"),
     legalName: env("BRAND_LEGAL_NAME", "Varshith KM LLC"),
     /*
@@ -152,34 +209,54 @@ export function getBrand(): Brand {
     // needing a new variable set on an already-running deployment.
     showProjectManagement: process.env.BRAND_HIDE_PROJECTS !== "true",
     signature: {
-      personName: env("BRAND_SIGNATURE_NAME", "VARSHITH KM"),
+      // The person signing, so the fallback is the business — never whoever the
+      // vendor's founder happens to be.
+      personName: env("BRAND_SIGNATURE_NAME", isVendor ? "VARSHITH KM" : name),
       personTitle: env("BRAND_SIGNATURE_TITLE", `CEO & Founder, ${name}`),
-      photoUrl: env(
+      photoUrl: vendorDetail(
         "BRAND_SIGNATURE_PHOTO_URL",
         "https://res.cloudinary.com/dliyoyws3/image/upload/fl_preserve_transparency/v1767880854/photo1-1_1_bho4el_xmnr6g.jpg",
+        isVendor,
       ),
-      phone: env("BRAND_SIGNATURE_PHONE", "+1 478 818 8340"),
-      schedulingUrl: env(
+      phone: vendorDetail("BRAND_SIGNATURE_PHONE", "+1 478 818 8340", isVendor),
+      schedulingUrl: vendorDetail(
         "BRAND_SIGNATURE_SCHEDULING_URL",
         "https://tidycal.com/vkumar",
+        isVendor,
       ),
-      linkedinUrl: env(
+      linkedinUrl: vendorDetail(
         "BRAND_SIGNATURE_LINKEDIN_URL",
         "https://www.linkedin.com/in/iamvarshith/",
+        isVendor,
       ),
-      linkedinLabel: env(
+      linkedinLabel: vendorDetail(
         "BRAND_SIGNATURE_LINKEDIN_LABEL",
         "linkedin.com/in/iamvarshith",
+        isVendor,
       ),
-      websiteUrl: env("BRAND_SIGNATURE_WEBSITE_URL", "https://www.nuraview.com/"),
-      websiteLabel: env("BRAND_SIGNATURE_WEBSITE_LABEL", "nuraview.com"),
-      legalLine: env(
+      /*
+       * The website is the one signature field with a sane non-vendor default:
+       * the instance's own marketing site, which BRAND_MARKETING_URL already
+       * knows. It used to be hardcoded to nuraview.com, so a client who set
+       * every other variable still linked the vendor's site from their footer.
+       */
+      websiteUrl: env(
+        "BRAND_SIGNATURE_WEBSITE_URL",
+        isVendor ? "https://www.nuraview.com/" : marketingUrl,
+      ),
+      websiteLabel: env(
+        "BRAND_SIGNATURE_WEBSITE_LABEL",
+        isVendor ? "nuraview.com" : hostLabel(marketingUrl),
+      ),
+      legalLine: vendorDetail(
         "BRAND_SIGNATURE_LEGAL_LINE",
         "Nuraview, registered as Varshith KM LLC in Delaware, USA.",
+        isVendor,
       ),
-      addressLine: env(
+      addressLine: vendorDetail(
         "BRAND_SIGNATURE_ADDRESS_LINE",
         "1007 N Orange St. 4th Floor, Wilmington, DE, 19801",
+        isVendor,
       ),
     },
   };

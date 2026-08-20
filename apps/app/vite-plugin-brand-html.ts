@@ -49,6 +49,12 @@ type BrandHtmlValues = {
   themeColor: string;
   backgroundColor: string;
   siteUrl: string;
+  /**
+   * The public marketing site. Not used in the <head> at all — it rides along so
+   * `window.__BRAND__` can seed the email/LinkedIn signature with the instance's
+   * own website instead of the vendor's. See seedSignature in src/lib/brand.ts.
+   */
+  marketingUrl: string;
   ogImageUrl: string;
   /** PWA install icons. Separate from faviconUrl — different sizes, different
    *  purpose, and getting them wrong means the home-screen tile shows somebody
@@ -115,6 +121,7 @@ function readBrand(): BrandHtmlValues {
     themeColor: env("BRAND_THEME_COLOR", "#141414"),
     backgroundColor: env("BRAND_BACKGROUND_COLOR", "#141414"),
     siteUrl: env("BRAND_SITE_URL", "https://nuraview.app"),
+    marketingUrl: env("BRAND_MARKETING_URL", "https://www.nuraview.com"),
     ogImageUrl: env("BRAND_OG_IMAGE_URL", "https://assets.nuraview.app/readme.png"),
     icon192Url,
     icon512Url: env("BRAND_ICON_512_URL", "/web-app-manifest-512x512.png"),
@@ -237,6 +244,7 @@ function buildHead(brand: BrandHtmlValues): string {
     faviconUrl: brand.faviconUrl,
     themeColor: brand.themeColor,
     backgroundColor: brand.backgroundColor,
+    marketingUrl: brand.marketingUrl,
   })};</script>${analytics}`;
 }
 
