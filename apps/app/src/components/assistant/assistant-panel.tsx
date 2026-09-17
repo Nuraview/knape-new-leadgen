@@ -434,7 +434,7 @@ export function AssistantPanel() {
       className={`fixed z-50 flex flex-col rounded-xl border border-border bg-card shadow-2xl ${
         launcher.position
           ? ""
-          : "top-24 end-5 h-[min(32rem,calc(100vh-7rem))] w-[min(26rem,calc(100vw-2.5rem))]"
+          : "top-24 end-5 h-[min(32rem,calc(100dvh-7rem))] w-[min(26rem,calc(100vw-2.5rem))]"
       }`}
     >
       <header className="flex items-center gap-2 border-b border-border p-3">

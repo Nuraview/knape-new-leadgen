@@ -52,7 +52,7 @@ function RouteComponent() {
     return (
       <Layout>
         <PageTitle title="Project board" />
-        <div className="flex-1 p-5">
+        <div className="flex-1 p-3 sm:p-5">
           <Skeleton className="h-64" />
         </div>
       </Layout>
@@ -78,12 +78,12 @@ function RouteComponent() {
   return (
     <Layout>
       <PageTitle title="Project board" />
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Project board</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Project board</h1>
       </header>
 
-      <div className="flex-1 overflow-auto p-5">
+      <div className="flex-1 overflow-auto p-3 sm:p-5">
         <div className="rounded-lg border border-border bg-card p-5">
           <p className="text-sm font-medium">
             The shared board is not connected yet.

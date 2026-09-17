@@ -430,17 +430,17 @@ function InvoicesPage() {
     <Layout>
       <PageTitle title="Invoices" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Invoices</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Invoices</h1>
         {items.length > 0 ? (
-          <span className="text-sm text-muted-foreground">
+          <span className="hidden text-sm text-muted-foreground sm:inline">
             {money(outstanding, items[0]?.currency ?? "USD")} outstanding
           </span>
         ) : null}
         <Button
           size="sm"
-          className="ms-auto gap-1.5"
+          className="ms-auto shrink-0 gap-1.5"
           onClick={() => setCreateOpen(true)}
         >
           <Plus className="size-3.5" />
@@ -461,104 +461,108 @@ function InvoicesPage() {
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-background text-xs uppercase tracking-wide text-muted-foreground">
-              <tr className="border-b border-border">
-                <th className="px-5 py-2.5 text-left font-medium">Client</th>
-                <th className="px-3 py-2.5 text-left font-medium">Status</th>
-                <th className="px-3 py-2.5 text-right font-medium">Total</th>
-                <th className="px-3 py-2.5 text-right font-medium">Due</th>
-                <th className="px-3 py-2.5 text-left font-medium">Issued</th>
-                <th className="px-5 py-2.5 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((inv) => (
-                <tr
-                  key={inv.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/40"
-                >
-                  <td className="px-5 py-3 font-medium">
-                    {inv.clientName ?? "—"}
-                    {inv.test ? (
-                      <span className="ms-2 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                        test
+          <div className="table-scroll">
+            {/* Scrolls on a phone rather than crushing every column to an
+                ellipsis — see .table-scroll in index.css. */}
+            <table className="w-full min-w-[42rem] text-sm">
+              <thead className="sticky top-0 bg-background text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-border">
+                  <th className="px-5 py-2.5 text-left font-medium">Client</th>
+                  <th className="px-3 py-2.5 text-left font-medium">Status</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Total</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Due</th>
+                  <th className="px-3 py-2.5 text-left font-medium">Issued</th>
+                  <th className="px-5 py-2.5 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((inv) => (
+                  <tr
+                    key={inv.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/40"
+                  >
+                    <td className="px-5 py-3 font-medium">
+                      {inv.clientName ?? "—"}
+                      {inv.test ? (
+                        <span className="ms-2 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                          test
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={cn(
+                          "rounded border px-1.5 py-0.5 text-xs font-medium",
+                          statusClass(inv.status),
+                        )}
+                      >
+                        {inv.status}
                       </span>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-3">
-                    <span
-                      className={cn(
-                        "rounded border px-1.5 py-0.5 text-xs font-medium",
-                        statusClass(inv.status),
-                      )}
-                    >
-                      {inv.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums">
-                    {money(Number(inv.grandTotal) || 0, inv.currency)}
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums">
-                    {inv.status === "PAID"
-                      ? "—"
-                      : money(Number(inv.balanceDue) || 0, inv.currency)}
-                  </td>
-                  <td className="px-3 py-3 text-muted-foreground">
-                    {inv.issueDate
-                      ? new Date(inv.issueDate).toLocaleDateString()
-                      : "—"}
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1.5"
-                        onClick={() => {
-                          void navigator.clipboard
-                            .writeText(inv.payUrl)
-                            .catch(() => {});
-                          toast.success("Pay link copied");
-                        }}
-                      >
-                        <Copy className="size-3.5" />
-                        Link
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1.5"
-                        render={
-                          <a
-                            href={inv.payUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          />
-                        }
-                      >
-                        <Link2 className="size-3.5" />
-                        Open
-                      </Button>
-                      {inv.status !== "PAID" ? (
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums">
+                      {money(Number(inv.grandTotal) || 0, inv.currency)}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums">
+                      {inv.status === "PAID"
+                        ? "—"
+                        : money(Number(inv.balanceDue) || 0, inv.currency)}
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground">
+                      {inv.issueDate
+                        ? new Date(inv.issueDate).toLocaleDateString()
+                        : "—"}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center justify-end gap-1.5">
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           className="h-8 gap-1.5"
-                          disabled={markPaid.isPending}
-                          onClick={() => markPaid.mutate(inv.id)}
-                          title="Bank transfer, cash, or a card taken by phone"
+                          onClick={() => {
+                            void navigator.clipboard
+                              .writeText(inv.payUrl)
+                              .catch(() => {});
+                            toast.success("Pay link copied");
+                          }}
                         >
-                          <Send className="size-3.5" />
-                          Mark paid
+                          <Copy className="size-3.5" />
+                          Link
                         </Button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5"
+                          render={
+                            <a
+                              href={inv.payUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            />
+                          }
+                        >
+                          <Link2 className="size-3.5" />
+                          Open
+                        </Button>
+                        {inv.status !== "PAID" ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1.5"
+                            disabled={markPaid.isPending}
+                            onClick={() => markPaid.mutate(inv.id)}
+                            title="Bank transfer, cash, or a card taken by phone"
+                          >
+                            <Send className="size-3.5" />
+                            Mark paid
+                          </Button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

@@ -194,7 +194,7 @@ function KanbanBoard({ project, disableDragDrop = false }: KanbanBoardProps) {
         </header>
 
         <div className="relative min-h-0 flex-1">
-          <div className="flex h-full flex-1 gap-4 overflow-x-auto px-4 pb-4 md:px-5">
+          <div className="scroll-x-contain flex h-full flex-1 gap-4 px-2 pb-4 sm:px-4 md:px-5">
             {[...Array(4)].map((_, i) => (
               <div
                 key={`kanban-column-skeleton-${
@@ -246,8 +246,8 @@ function KanbanBoard({ project, disableDragDrop = false }: KanbanBoardProps) {
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-full w-full flex-col bg-linear-to-b from-muted/20 to-background">
-        <div className="min-h-0 flex-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
-          <div className="flex h-full min-w-max gap-4 px-4 py-4 md:px-5">
+        <div className="scroll-x-contain snap-strip min-h-0 flex-1">
+          <div className="flex h-full min-w-max gap-4 px-2 py-4 sm:px-4 md:px-5">
             {project.columns?.map((column) => (
               <div
                 key={column.id}

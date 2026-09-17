@@ -257,10 +257,10 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Leads" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Leads</h1>
-        <span className="text-sm text-muted-foreground">
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Leads</h1>
+        <span className="hidden text-sm text-muted-foreground sm:inline">
           {list.isLoading
             ? ""
             : `${total.toLocaleString()} lead${total === 1 ? "" : "s"}`}
@@ -268,7 +268,7 @@ function RouteComponent() {
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-3 sm:px-5">
           {/* Accounts vs people. */}
           <div className="flex rounded-md border border-border p-0.5">
             {(
@@ -336,7 +336,7 @@ function RouteComponent() {
               resetToFirstPage();
             }}
             aria-label="Filter by email address"
-            className="ms-auto h-9 rounded-md border border-border bg-background px-2 text-sm"
+            className="h-9 rounded-md border border-border bg-background px-2 text-sm sm:ms-auto"
           >
             <option value="any">All leads</option>
             <option value="has">Has an email</option>
@@ -371,7 +371,7 @@ function RouteComponent() {
               resetToFirstPage();
             }}
             placeholder="Search leads…"
-            className="h-9 w-64 rounded-md border border-border bg-background px-3 text-sm"
+            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm sm:w-64"
           />
         </div>
 
@@ -380,7 +380,7 @@ function RouteComponent() {
           onScroll={(e) => {
             remembered.scrollTop = e.currentTarget.scrollTop;
           }}
-          className="flex-1 overflow-auto p-5"
+          className="flex-1 overflow-auto p-3 sm:p-5"
         >
           {/*
             Live scraper state, above the list.
@@ -437,7 +437,7 @@ function RouteComponent() {
               </p>
             ) : isPeople ? (
               <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[42rem] text-sm">
                   <thead className="bg-muted/40 text-left">
                     <tr>
                       {["Name", "Title", "Email", "Company", "Score"].map((h) => (

@@ -88,10 +88,20 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Outreach" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Outreach</h1>
-        <nav className="ms-4 flex flex-wrap items-center gap-1">
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Outreach</h1>
+        {/*
+          A SCROLLING strip, not a wrapping one.
+
+          flex-wrap inside a header pinned to h-14 is a trap: on a phone the
+          four stages plus their counts are wider than the screen, the nav
+          wraps onto a second line, and that line is simply clipped by the
+          fixed height — so "Sent" was invisible and unreachable, with no
+          scrollbar to hint at it. One line that scrolls fits the header it
+          lives in.
+        */}
+        <nav className="scroll-x-contain ms-1 flex items-center gap-1 sm:ms-4">
           {STAGES.map((s) => {
             const active = s.key === stage;
             const n = counts[s.key];
@@ -101,7 +111,7 @@ function RouteComponent() {
                 type="button"
                 onClick={() => go(s.key)}
                 title={s.meaning ? `${s.label} — ${s.meaning}` : s.label}
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm ${
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm ${
                   active
                     ? "bg-primary/10 font-medium text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -125,7 +135,7 @@ function RouteComponent() {
           .join(" · ")}
       </p>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <div className="mx-auto max-w-6xl">
           {stage === "campaign" ? (
             <CampaignWizard onSent={() => go("scheduled")} />

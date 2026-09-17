@@ -1,3 +1,5 @@
+import { useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
 import type * as React from "react";
 
 import { NavActivityToday } from "@/components/nav-activity-today";
@@ -23,7 +25,26 @@ import { useRegisterShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import Search from "./search";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, isMobile, setOpenMobile } = useSidebar();
+
+  /*
+   * Close the drawer once navigation has happened.
+   *
+   * On a phone the sidebar is a Sheet over the page, and nothing was
+   * dismissing it — so tapping "Pipeline" changed the route BEHIND the open
+   * drawer and left the reader looking at the menu they had just used, with
+   * the page they asked for hidden underneath. Every nav item in here, in
+   * NavCrm, NavMain and NavProjects, is an ordinary <Link>; putting the
+   * dismissal on the route instead of on each link means a new menu entry
+   * cannot forget it.
+   *
+   * Desktop is untouched: there the sidebar is a persistent column, and
+   * collapsing it on every click would be actively hostile.
+   */
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [pathname, isMobile, setOpenMobile]);
   const { data: access } = useMyAccess();
   const brand = useBrand();
   /*

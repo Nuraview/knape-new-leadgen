@@ -68,9 +68,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Employees" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Employees</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Employees</h1>
         {items.length > 0 ? (
           <span className="ms-2 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
             {activeNow} on the clock
@@ -78,7 +78,7 @@ function RouteComponent() {
         ) : null}
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {error ? (
           <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
             {(error as Error).message}
@@ -92,8 +92,14 @@ function RouteComponent() {
               themselves. A low number can mean they forgot to start it.
             </p>
 
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
-              <table className="w-full text-sm">
+            {/*
+              overflow-x-auto, not overflow-hidden. The wrapper was clipping:
+              on a phone the last two columns of this table were not scrolled
+              off, they were CUT off, with nothing to indicate they existed.
+              The x-axis scrolls and the rounded corners still hold.
+            */}
+            <div className="table-scroll rounded-xl border border-border bg-card">
+              <table className="w-full min-w-[42rem] text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">
                     <th className="px-5 py-2.5 text-left font-medium">Member</th>
@@ -283,7 +289,7 @@ function AddTimeDialog({
             </label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 From

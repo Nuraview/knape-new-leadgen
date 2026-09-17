@@ -10,6 +10,7 @@ import AuthProvider from "./components/providers/auth-provider";
 import { ThemeProvider } from "./components/providers/theme-provider";
 import { KeyboardShortcutsProvider } from "./hooks/use-keyboard-shortcuts";
 import { AppI18nProvider } from "./lib/i18n/provider";
+import { registerServiceWorker } from "./lib/pwa";
 import { routeTree } from "./routeTree.gen";
 
 console.log(`
@@ -32,6 +33,14 @@ console.log(`
   
   Your One Stop Solution
 `);
+
+/*
+ * The service worker, for every visitor rather than only signed-in ones.
+ *
+ * Installability and the cached app shell are properties of the ORIGIN, and
+ * the screen people install from is the sign-in screen. See lib/pwa.ts.
+ */
+registerServiceWorker();
 
 const router = createRouter({
   routeTree,

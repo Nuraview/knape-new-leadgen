@@ -68,7 +68,7 @@ function RouteComponent() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh-safe bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-5 py-4">
 <BrandWordmark className="h-8 w-auto" />

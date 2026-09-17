@@ -5,6 +5,7 @@ import { GlobalDialerRuntime } from "@/components/dialer/global-dialer-runtime";
 import { authClient } from "@/lib/auth-client";
 import { EnableNotifications } from "@/components/enable-notifications";
 import { PushAlerts } from "@/components/push-alerts";
+import { InstallAppPrompt } from "@/components/install-app-prompt";
 
 // protects all child routes, must be logged in
 export const Route = createFileRoute("/_layout/_authenticated")({
@@ -80,6 +81,14 @@ export const Route = createFileRoute("/_layout/_authenticated")({
         DEEPSEEK_API_KEY rather than offering a button that 503s.
       */}
       <AssistantPanel />
+      {/*
+        The install nudge, on the shell for the same reason as everything else
+        in this list: it used to be rendered by the dialer page alone, so the
+        people who work this CRM from a phone on the leads list were never
+        offered the install that makes push, offline and the home-screen
+        launch work at all.
+      */}
+      <InstallAppPrompt />
       <Outlet />
     </DialerProvider>
   ),

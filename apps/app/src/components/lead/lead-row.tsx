@@ -181,7 +181,7 @@ export function LeadRow({
         }
       }}
       className={cn(
-        "group relative flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-start outline-none transition-colors",
+        "group relative flex w-full min-w-0 cursor-pointer items-center gap-2.5 px-3 py-2.5 text-start outline-none transition-colors sm:gap-3 sm:px-4",
         "hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         selected && "bg-accent",
       )}
@@ -200,7 +200,8 @@ export function LeadRow({
         aria-label={starred ? "Unmark as handled" : "Mark as handled"}
         aria-pressed={starred}
         title={starred ? "Handled" : "Mark as handled"}
-        className="-m-1 shrink-0 rounded-md p-1 text-muted-foreground/40 outline-none transition-colors hover:text-amber-500 focus-visible:ring-2 focus-visible:ring-ring"
+        data-touch-target
+        className="-m-1 flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground/40 outline-none transition-colors hover:text-amber-500 focus-visible:ring-2 focus-visible:ring-ring"
         onClick={(e) => {
           e.stopPropagation();
           onToggleStar();
@@ -281,7 +282,7 @@ export function LeadRow({
           ) : null}
 
           {lead.email ? (
-            <span className="inline-flex min-w-0 items-center gap-1">
+            <span className="inline-flex min-w-0 max-w-[14rem] items-center gap-1 sm:max-w-none">
               <Mail className="size-3 shrink-0 opacity-70" />
               <span className="truncate">{lead.email}</span>
             </span>
@@ -305,9 +306,22 @@ export function LeadRow({
         </div>
       </div>
 
-      {/* Row actions live on hover/focus. On every row, always visible, they
-          were louder than the lead itself. */}
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+      {/*
+        Row actions live on hover/focus. On every row, always visible, they
+        were louder than the lead itself.
+
+        data-hover-reveal is what keeps them REACHABLE on a phone. A touch
+        screen never fires :hover, so opacity-0 meant "record a video" and
+        "open on Upwork" were rendered, focusable by a screen reader, and
+        invisible and untappable to everyone actually holding the device —
+        two features that simply did not exist on mobile. The attribute is
+        answered by one `@media (hover: none)` rule in index.css, so the quiet
+        desktop behaviour is unchanged.
+      */}
+      <div
+        data-hover-reveal
+        className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+      >
         <a
           href="https://cap.nuraview.com"
           target="_blank"
@@ -337,8 +351,17 @@ export function LeadRow({
       {/* Absolute date over relative age, as in the legacy list: the exact
           timestamp is what gets quoted in outreach, the relative one is what
           makes freshness scannable. Tabular figures so the column lines up. */}
-      <div className="w-[108px] shrink-0 text-end tabular-nums">
-        <div className="whitespace-nowrap font-medium text-[12px] text-foreground/75 leading-4">
+      {/*
+        On a phone this 108px column is the difference between a readable
+        company name and a truncated one: it is the widest thing on the row
+        after the title, and the title is what people scan. So the exact
+        timestamp — the one that gets quoted in outreach, and is available in
+        the detail panel — drops out below sm, and the relative age stays,
+        because "2h ago" is the part that makes freshness scannable and it
+        costs four characters.
+      */}
+      <div className="shrink-0 text-end tabular-nums sm:w-[108px]">
+        <div className="hidden whitespace-nowrap font-medium text-[12px] text-foreground/75 leading-4 sm:block">
           {when
             ? new Date(when).toLocaleString(undefined, {
                 month: "short",
@@ -348,7 +371,10 @@ export function LeadRow({
               })
             : "—"}
         </div>
-        <div className="text-[11px] text-muted-foreground leading-4">
+        <div
+          className="whitespace-nowrap text-[11px] text-muted-foreground leading-4"
+          title={when ? new Date(when).toLocaleString() : undefined}
+        >
           {relative(when) ?? ""}
         </div>
       </div>

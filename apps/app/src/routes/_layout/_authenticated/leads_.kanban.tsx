@@ -667,9 +667,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Leads · Kanban" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Leads · Kanban</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Leads · Kanban</h1>
         <Link
           to="/leads"
           className="ms-auto text-sm text-muted-foreground underline hover:text-foreground"
@@ -679,7 +679,7 @@ function RouteComponent() {
       </header>
 
       {/* Toolbar, mirroring the legacy board. */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5 sm:gap-3 sm:px-5">
         <div
           className="inline-flex shrink-0 rounded-md border border-border p-0.5 text-sm"
           role="group"
@@ -741,7 +741,7 @@ function RouteComponent() {
         working the day's arrivals, not for auditing the backlog.
       */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-4">
+      <div className="scroll-x-contain snap-strip flex min-h-0 flex-1 gap-3 p-2 sm:p-4">
         {visibleDays.map((day, i) => (
           <Column
             key={day.key}

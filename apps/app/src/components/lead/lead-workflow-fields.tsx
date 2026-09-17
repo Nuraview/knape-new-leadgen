@@ -178,7 +178,7 @@ export function LeadWorkflowFields({
   return (
     <>
       {/* --- Status + Assignee --- */}
-      <div className="mt-6 grid grid-cols-2 gap-3 border-t border-border pt-4 text-sm">
+      <div className="mt-6 grid grid-cols-1 gap-3 border-t border-border pt-4 text-sm sm:grid-cols-2">
         <div className="space-y-1">
           <div className="text-xs font-medium text-muted-foreground">Status</div>
           <select

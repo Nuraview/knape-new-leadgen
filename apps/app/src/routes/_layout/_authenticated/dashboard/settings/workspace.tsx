@@ -72,8 +72,15 @@ function RouteComponent() {
   const workspaceInitials = getInitials(workspace?.name, "WS");
 
   return (
-    <div className="flex gap-6 h-full">
-      <aside className="w-64 flex-shrink-0">
+    <div className="flex h-full min-w-0 flex-col gap-4 md:flex-row md:gap-6">
+      {/*
+        The nav is a COLUMN beside the content on a desktop and a ROW above it
+        on a phone: at 256px wide it would otherwise take two thirds of a
+        390px screen and leave the settings panel itself unusable. `shrink-0`
+        only applies once it is a column again — in the stacked layout it must
+        be free to take the full width.
+      */}
+      <aside className="w-full md:w-64 md:flex-shrink-0">
         <div className="p-2">
           <div className="mb-1 flex items-center gap-3 rounded-md px-2 py-2">
             <Avatar className="h-8 w-8">

@@ -7,7 +7,13 @@ type LoadingSkeletonProps = {
 export function LoadingSkeleton({ className }: LoadingSkeletonProps) {
   return (
     <div className={cn("flex w-full h-svh bg-sidebar", className)}>
-      <div className="w-64 bg-sidebar border-r border-border flex flex-col">
+      {/*
+        Hidden below md, exactly like the real sidebar it stands in for. The
+        skeleton was drawing a 16rem rail on a phone — so the first thing
+        anyone saw on a cold load was a layout the app does not have, and the
+        content skeleton beside it was squeezed into what was left.
+      */}
+      <div className="hidden w-64 flex-col border-r border-border bg-sidebar md:flex">
         <div className="p-3 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-muted rounded animate-pulse" />

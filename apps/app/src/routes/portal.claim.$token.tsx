@@ -88,7 +88,7 @@ function RouteComponent() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-5">
+    <div className="flex min-h-dvh-safe items-center justify-center bg-background px-4 sm:px-5">
       <div className="w-full max-w-sm">
 <BrandWordmark className="mx-auto h-9 w-auto" />
 

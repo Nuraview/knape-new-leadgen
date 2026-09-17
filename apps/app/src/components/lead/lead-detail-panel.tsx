@@ -654,7 +654,11 @@ export function LeadDetailPanel({
      * Escape closes it, and the backdrop is a real button so a click outside
      * closes it too — both behaviours the legacy modal had.
      */
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    // inset-safe: `fixed inset-0` under viewport-fit=cover means the notch and
+    // the home indicator too, so on an installed iPhone the heading sat behind
+    // the clock and Save behind the indicator. The insets are 0 in a browser
+    // tab, so this is invisible everywhere else.
+    <div className="fixed inset-0 z-50 flex flex-col bg-background inset-safe">
       <button
         type="button"
         aria-label="Close lead"
@@ -697,11 +701,11 @@ export function LeadDetailPanel({
           This lead could not be loaded.
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5">
           {/* Full-bleed would stretch a label across a 27" monitor; the legacy
               modal kept its fields at a readable measure and centred them. */}
           <div className="mx-auto w-full max-w-6xl">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
               label="Company"
               value={form.company}
@@ -834,7 +838,7 @@ export function LeadDetailPanel({
             />
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-4">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-muted-foreground">
                 Budget

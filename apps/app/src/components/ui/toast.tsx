@@ -56,9 +56,17 @@ function Toasts({ position = "bottom-right" }: { position: ToastPosition }) {
       <Toast.Viewport
         className={cn(
           "fixed z-[200] mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-90 [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
-          // Vertical positioning
-          "data-[position*=top]:top-(--toast-inset)",
-          "data-[position*=bottom]:bottom-(--toast-inset)",
+          /*
+           * Vertical positioning, plus the safe-area inset.
+           *
+           * Installed with viewport-fit=cover the page reaches the physical
+           * edges, so a toast 16px off the bottom lands ON the iOS home
+           * indicator — where it is both hard to read and in the way of the
+           * swipe-up gesture. Adding the inset (0 in a browser tab) puts it
+           * above that bar instead. Same at the top for the notch.
+           */
+          "data-[position*=top]:top-[calc(var(--toast-inset)+env(safe-area-inset-top,0px))]",
+          "data-[position*=bottom]:bottom-[calc(var(--toast-inset)+env(safe-area-inset-bottom,0px))]",
           // Horizontal positioning
           "data-[position*=left]:left-(--toast-inset)",
           "data-[position*=right]:right-(--toast-inset)",

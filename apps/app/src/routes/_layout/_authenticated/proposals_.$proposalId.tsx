@@ -537,7 +537,7 @@ function RouteComponent() {
     <Layout>
       <PageTitle title={isNew ? "New proposal" : title || "Proposal"} />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
         <button
           type="button"
@@ -547,7 +547,7 @@ function RouteComponent() {
           <ArrowLeft className="size-4" />
           Proposals
         </button>
-        <h1 className="truncate text-xl font-semibold">
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">
           {existing?.number ? `#${existing.number} · ` : ""}
           {title || "New proposal"}
         </h1>
@@ -687,7 +687,7 @@ function RouteComponent() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <div className="mx-auto w-full max-w-4xl space-y-5">
           {locked ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
@@ -770,7 +770,7 @@ function RouteComponent() {
             <div className="space-y-2">
               {lines.map((l, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional
-                <div key={i} className="grid grid-cols-12 gap-2">
+                <div key={i} className="grid grid-cols-6 gap-2 sm:grid-cols-12">
                   <Input
                     className="col-span-6"
                     placeholder="Description"
@@ -780,7 +780,7 @@ function RouteComponent() {
                     disabled={locked}
                   />
                   <Input
-                    className="col-span-2"
+                    className="col-span-2 sm:col-span-2"
                     inputMode="decimal"
                     placeholder="Qty"
                     aria-label={`Quantity for line ${i + 1}`}
@@ -790,7 +790,7 @@ function RouteComponent() {
                     disabled={locked}
                   />
                   <Input
-                    className="col-span-2"
+                    className="col-span-2 sm:col-span-2"
                     inputMode="decimal"
                     placeholder="Unit price"
                     aria-label={`Unit price for line ${i + 1}`}
@@ -814,6 +814,7 @@ function RouteComponent() {
                   <button
                     type="button"
                     aria-label="Remove line"
+                    data-touch-target
                     className="col-span-1 flex items-center justify-center text-muted-foreground hover:text-destructive"
                     onClick={() =>
                       setLines((prev) => prev.filter((_, n) => n !== i))
@@ -972,7 +973,7 @@ function RouteComponent() {
                 }
                 className="w-full rounded-md border border-border bg-background p-2 text-sm"
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">
                     Budget (optional)

@@ -248,7 +248,7 @@ function RouteComponent() {
     <Layout>
       <PageTitle title={a?.company ?? "Lead"} />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
         {/*
           Link, not <a href>. A raw href here did a full document load on every
@@ -263,12 +263,12 @@ function RouteComponent() {
           <ArrowLeft className="size-4" />
           Leads
         </Link>
-        <h1 className="truncate text-lg font-semibold">
+        <h1 className="min-w-0 truncate font-semibold text-base sm:text-lg">
           {account.isLoading ? "…" : (a?.company ?? "Lead")}
         </h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <div className="mx-auto max-w-4xl space-y-5">
           {account.isLoading ? (
             <Skeleton className="h-32" />

@@ -147,13 +147,13 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Home" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">{brand.shortName || "Home"}</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">{brand.shortName || "Home"}</h1>
         <span className="text-xs text-muted-foreground">last 7 days</span>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <div className="mx-auto max-w-5xl space-y-6">
           {/*
             What to do, before what happened. Everything below this reports;

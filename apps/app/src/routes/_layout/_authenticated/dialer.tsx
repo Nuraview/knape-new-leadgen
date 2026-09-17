@@ -38,7 +38,6 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useDialer } from "@/components/dialer/dialer-provider";
 import { getApiUrl } from "@/fetchers/get-api-url";
 import { cn } from "@/lib/cn";
-import { InstallBanner } from "@/components/dialer/install-banner";
 import { TemplatePicker } from "@/components/dialer/template-picker";
 
 type MessageRow = {
@@ -327,9 +326,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Dialer" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Dialer</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Dialer</h1>
         <span
           className={cn(
             "ms-2 rounded-full px-2 py-0.5 text-[11px] font-medium",
@@ -388,9 +387,14 @@ function RouteComponent() {
         ) : null}
       </header>
 
-      {/* Installing measurably improves push reliability on mobile, which is
-          the difference between hearing a call and finding it in Missed. */}
-      <InstallBanner />
+      {/*
+        The install nudge used to be rendered here, and ONLY here, so the
+        only people ever offered it were the ones who had already reached the
+        dialer. It now lives on the authenticated shell — see
+        components/install-app-prompt.tsx, which keeps this page's reasoning
+        (a browser tab drops calls; an installed app does not) as its wording
+        on /dialer.
+      */}
 
       {/*
         A ringing call used to be a tinted strip right here — easy to miss on
@@ -399,9 +403,17 @@ function RouteComponent() {
         included, so there is nothing left for the page to draw.
       */}
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      {/*
+        Two panes side by side, ONE ABOVE THE OTHER on a phone.
+
+        The keypad column is 20rem wide and does not shrink, which on a 390px
+        screen left roughly 70px for the call log beside it — a column of
+        single characters. Stacked, the keypad keeps its full width and dialling
+        stays the first thing under your thumb, with the log scrolling below it.
+      */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
         {/* Keypad */}
-        <div className="w-80 shrink-0 space-y-3 overflow-y-auto border-e border-border p-5">
+        <div className="w-full shrink-0 space-y-3 overflow-y-auto border-b border-border p-3 sm:p-5 lg:w-80 lg:border-b-0 lg:border-e">
           <Input
             value={number}
             onChange={(e) => setNumber(e.target.value)}
@@ -754,51 +766,55 @@ function RouteComponent() {
           ) : null}
 
           {tab === "calls" ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs text-muted-foreground">
-                  <th className="px-5 py-2 text-left font-medium">Number</th>
-                  <th className="px-5 py-2 text-left font-medium">Direction</th>
-                  <th className="px-5 py-2 text-left font-medium">Status</th>
-                  <th className="px-5 py-2 text-right font-medium">Duration</th>
-                  <th className="px-5 py-2 text-right font-medium">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(calls.data?.calls ?? []).map((call) => (
-                  <tr key={call.id} className="border-b border-border">
-                    <td className="px-5 py-2.5">
-                      <div className="tabular-nums">{call.phoneNumber}</div>
-                      {call.leadName ? (
-                        <div className="text-xs text-muted-foreground">
-                          {call.leadName}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-5 py-2.5 text-muted-foreground">
-                      {directionLabel(call.direction)}
-                    </td>
-                    <td className="px-5 py-2.5">{statusLabel(call.status)}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums">
-                      {duration(call.duration)}
-                    </td>
-                    <td className="px-5 py-2.5 text-right text-muted-foreground">
-                      {when(call.createdAt)}
-                    </td>
+            <div className="table-scroll">
+              {/* Scrolls on a phone rather than crushing every column to an
+                  ellipsis — see .table-scroll in index.css. */}
+              <table className="min-w-[42rem] w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs text-muted-foreground">
+                    <th className="px-5 py-2 text-left font-medium">Number</th>
+                    <th className="px-5 py-2 text-left font-medium">Direction</th>
+                    <th className="px-5 py-2 text-left font-medium">Status</th>
+                    <th className="px-5 py-2 text-right font-medium">Duration</th>
+                    <th className="px-5 py-2 text-right font-medium">When</th>
                   </tr>
-                ))}
-                {(calls.data?.calls ?? []).length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-5 py-8 text-center text-muted-foreground"
-                    >
-                      No calls yet.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(calls.data?.calls ?? []).map((call) => (
+                    <tr key={call.id} className="border-b border-border">
+                      <td className="px-5 py-2.5">
+                        <div className="tabular-nums">{call.phoneNumber}</div>
+                        {call.leadName ? (
+                          <div className="text-xs text-muted-foreground">
+                            {call.leadName}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-5 py-2.5 text-muted-foreground">
+                        {directionLabel(call.direction)}
+                      </td>
+                      <td className="px-5 py-2.5">{statusLabel(call.status)}</td>
+                      <td className="px-5 py-2.5 text-right tabular-nums">
+                        {duration(call.duration)}
+                      </td>
+                      <td className="px-5 py-2.5 text-right text-muted-foreground">
+                        {when(call.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                  {(calls.data?.calls ?? []).length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-5 py-8 text-center text-muted-foreground"
+                      >
+                        No calls yet.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="p-5">
               <div className="mb-2 flex items-center gap-2">

@@ -145,7 +145,7 @@ function InvitationsPage() {
   return (
     <>
       <PageTitle title={t("invitations:pageTitle")} />
-      <div className="flex w-full min-h-screen items-center justify-center p-6 bg-background">
+      <div className="flex min-h-dvh-safe w-full items-center justify-center bg-background p-4 sm:p-6">
         <div className="w-full max-w-2xl space-y-8">
           <div className="space-y-3 text-center">
             <h1 className="text-3xl font-semibold">

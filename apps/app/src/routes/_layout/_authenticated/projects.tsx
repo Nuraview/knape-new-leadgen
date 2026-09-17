@@ -46,9 +46,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Projects" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Projects</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Projects</h1>
       </header>
 
       {/*

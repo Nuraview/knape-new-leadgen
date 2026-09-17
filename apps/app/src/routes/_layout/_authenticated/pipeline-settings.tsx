@@ -98,9 +98,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Pipeline settings" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Pipeline settings</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Pipeline settings</h1>
         {dirty ? (
           <div className="ms-auto flex gap-2">
             <Button variant="outline" onClick={() => setDraft({})}>
@@ -115,7 +115,7 @@ function RouteComponent() {
         ) : null}
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <div className="mx-auto max-w-3xl space-y-6">
           {/*
             Was a dump of raw provider errors:

@@ -230,7 +230,32 @@ function buildHead(brand: BrandHtmlValues): string {
   <meta name="theme-color" content="${attr(brand.themeColor)}" />
   <link rel="manifest" href="/site.webmanifest" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!--
+    STANDALONE MODE. The manifest's display:standalone covers Android and
+    desktop Chrome; iOS reads none of it and needs these two, which predate the
+    manifest spec and are still the only way Safari drops its own chrome. Added
+    to Home Screen without them, the CRM opens in a browser view with a URL bar
+    and no back-swipe — installed in name only.
+
+    black-translucent lets the page paint UNDER the status bar, which is what
+    makes the safe-area insets in index.css non-zero and the app look native
+    rather than letterboxed.
+  -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!--
+    viewport-fit=cover is the other half of that: without it iOS reserves the
+    notch and home-indicator areas itself and env(safe-area-inset-*) reports 0,
+    so the layout can neither use the space nor avoid it.
+
+    No maximum-scale or user-scalable=no. Blocking pinch-zoom is the usual way
+    to "fix" mobile layout and it takes the zoom away from the people who need
+    it most; the layout is made to fit instead (see the root font-size scale in
+    index.css).
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="application-name" content="${attr(brand.shortName)}">
   <link rel="canonical" href="${attr(brand.siteUrl)}">
 
@@ -246,6 +271,132 @@ function buildHead(brand: BrandHtmlValues): string {
     backgroundColor: brand.backgroundColor,
     marketingUrl: brand.marketingUrl,
   })};</script>${analytics}`;
+}
+
+/**
+ * The web app manifest, as a JSON string.
+ *
+ * Shared by the dev middleware and the build emit so the two cannot drift —
+ * the previous arrangement had it inline in generateBundle, which is why dev
+ * had no manifest at all.
+ */
+function buildManifest(brand: BrandHtmlValues): string {
+  const icons = [
+    {
+      // "any", not "maskable". This entry claimed maskable while pointing
+      // at an ordinary icon, so Android cropped a square artwork to its
+      // safe circle and shaved the edges off the mark. Only
+      // iconMaskableUrl is drawn with the safe zone in mind.
+      src: brand.icon192Url,
+      sizes: "192x192",
+      type: mimeForImage(brand.icon192Url),
+      purpose: "any",
+    },
+    {
+      // The 512 was reachable only as a maskable, so an installing browser
+      // asking for a large square icon had nothing above 192 to take.
+      src: brand.icon512Url,
+      sizes: "512x512",
+      type: mimeForImage(brand.icon512Url),
+      purpose: "any",
+    },
+    {
+      src: brand.faviconUrl,
+      sizes: "any",
+      type: mimeForImage(brand.faviconUrl),
+      purpose: "any",
+    },
+    {
+      src: brand.iconMaskableUrl,
+      sizes: "512x512",
+      type: mimeForImage(brand.iconMaskableUrl),
+      purpose: "maskable",
+    },
+    // A brand that points BRAND_FAVICON_URL at its own 192 — the sane
+    // thing to do when the identity is one raster mark — would otherwise
+    // list it twice. The measured entry is listed first so it is the one
+    // that survives; `sizes: "any"` is a claim only an SVG can honour.
+  ].filter(
+    (icon, i, all) =>
+      all.findIndex((o) => o.src === icon.src && o.purpose === icon.purpose) === i,
+  );
+
+  const startUrl = env("BRAND_PWA_START_URL", "/leads");
+
+  return `${JSON.stringify(
+    {
+      /*
+       * `id` pins the app's identity independently of start_url. Without it
+       * the install identity IS the start URL, so changing BRAND_PWA_START_URL
+       * in a later deploy makes every already-installed copy look like a
+       * different app: the icon stays on the home screen, the new one installs
+       * beside it, and neither shares storage with the other.
+       */
+      id: "/",
+      name: brand.name,
+      short_name: brand.shortName,
+      description: brand.description,
+      icons,
+      theme_color: brand.themeColor,
+      background_color: brand.backgroundColor,
+      display: "standalone",
+      /*
+       * Preferred first, with a fallback chain. `window-controls-overlay` is
+       * ignored on mobile and gives the desktop install its title-bar area
+       * back as usable app surface; `minimal-ui` is what a browser that
+       * refuses standalone falls back to, and it is still chrome-light.
+       * `browser` last, so a browser that supports none of the above installs
+       * as a plain shortcut rather than refusing to install.
+       */
+      display_override: ["standalone", "minimal-ui", "browser"],
+      /*
+       * `any`, not portrait. This is a CRM with wide tables and a kanban
+       * board: locking it to portrait would stop a tablet user turning the
+       * device to read the thing tablets are good at reading.
+       */
+      orientation: "any",
+      lang: "en-US",
+      dir: "auto",
+      categories: ["business", "productivity"],
+      /*
+       * `scope` is what keeps navigation INSIDE the installed window. Without
+       * it the scope is inferred from start_url's directory — "/leads/" — so
+       * every link to /pipeline or /dashboard counted as leaving the app and
+       * iOS/Android handed it to the browser instead, which is the single most
+       * common way an installed PWA ends up feeling like a bookmark.
+       */
+      scope: "/",
+      start_url: startUrl,
+      /*
+       * Long-press the home-screen icon. These are the three things anyone
+       * opens the app ON A PHONE to do — check what came in, work the
+       * pipeline, take or place a call — and a shortcut skips the launch
+       * screen and the sidebar entirely.
+       */
+      shortcuts: [
+        {
+          name: "Leads",
+          short_name: "Leads",
+          url: "/leads",
+          icons: [{ src: brand.icon192Url, sizes: "192x192", type: mimeForImage(brand.icon192Url) }],
+        },
+        {
+          name: "Pipeline",
+          short_name: "Pipeline",
+          url: "/pipeline",
+          icons: [{ src: brand.icon192Url, sizes: "192x192", type: mimeForImage(brand.icon192Url) }],
+        },
+        {
+          name: "Dialer",
+          short_name: "Dialer",
+          url: "/dialer",
+          icons: [{ src: brand.icon192Url, sizes: "192x192", type: mimeForImage(brand.icon192Url) }],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 /**
@@ -285,49 +436,33 @@ export function brandHtml(): Plugin {
         html.slice(end)
       );
     },
+    /*
+     * The manifest is SERVED in dev as well as emitted at build.
+     *
+     * generateBundle never runs under `vite dev`, and there is no
+     * public/site.webmanifest — it was deleted on purpose (see the note in
+     * buildManifest). So the <link rel="manifest"> resolved through the SPA
+     * fallback and the dev server answered index.html, with the HTML content
+     * type, for a request the browser was parsing as JSON. Every local page
+     * load logged "Manifest: Line: 1, column: 1, Syntax error", the install
+     * prompt never appeared, and none of the PWA behaviour could be tested
+     * anywhere except a production build — which is exactly when you least
+     * want to discover the manifest is wrong.
+     *
+     * Registered before the SPA fallback by being a `configureServer` hook
+     * without `post`, so this handler sees the request first.
+     */
+    configureServer(server) {
+      server.middlewares.use("/site.webmanifest", (_req, res) => {
+        res.setHeader("Content-Type", "application/manifest+json");
+        // Never cached in dev: the brand is read from the environment on every
+        // request so editing .env and reloading shows the change.
+        res.setHeader("Cache-Control", "no-store");
+        res.end(buildManifest(readBrand()));
+      });
+    },
+
     generateBundle() {
-      const brand = readBrand();
-
-      const icons = [
-        {
-          // "any", not "maskable". This entry claimed maskable while pointing
-          // at an ordinary icon, so Android cropped a square artwork to its
-          // safe circle and shaved the edges off the mark. Only
-          // iconMaskableUrl is drawn with the safe zone in mind.
-          src: brand.icon192Url,
-          sizes: "192x192",
-          type: mimeForImage(brand.icon192Url),
-          purpose: "any",
-        },
-        {
-          // The 512 was reachable only as a maskable, so an installing browser
-          // asking for a large square icon had nothing above 192 to take.
-          src: brand.icon512Url,
-          sizes: "512x512",
-          type: mimeForImage(brand.icon512Url),
-          purpose: "any",
-        },
-        {
-          src: brand.faviconUrl,
-          sizes: "any",
-          type: mimeForImage(brand.faviconUrl),
-          purpose: "any",
-        },
-        {
-          src: brand.iconMaskableUrl,
-          sizes: "512x512",
-          type: mimeForImage(brand.iconMaskableUrl),
-          purpose: "maskable",
-        },
-        // A brand that points BRAND_FAVICON_URL at its own 192 — the sane
-        // thing to do when the identity is one raster mark — would otherwise
-        // list it twice. The measured entry is listed first so it is the one
-        // that survives; `sizes: "any"` is a claim only an SVG can honour.
-      ].filter(
-        (icon, i, all) =>
-          all.findIndex((o) => o.src === icon.src && o.purpose === icon.purpose) === i,
-      );
-
       /*
        * Emitted rather than kept in public/, because every field in it is
        * branded — a static file would be copied verbatim and would still say
@@ -342,21 +477,7 @@ export function brandHtml(): Plugin {
       this.emitFile({
         type: "asset",
         fileName: "site.webmanifest",
-        source: `${JSON.stringify(
-          {
-            name: brand.name,
-            short_name: brand.shortName,
-            description: brand.description,
-            icons,
-            theme_color: brand.themeColor,
-            background_color: brand.backgroundColor,
-            display: "standalone",
-            // The CRM is the point of installing this, not the marketing page.
-            start_url: env("BRAND_PWA_START_URL", "/leads"),
-          },
-          null,
-          2,
-        )}\n`,
+        source: buildManifest(readBrand()),
       });
     },
 

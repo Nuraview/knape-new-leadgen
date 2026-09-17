@@ -103,7 +103,20 @@ function Layout({ children, className }: LayoutProps) {
     // UI to the pages that happen to render Layout. Every /dashboard, settings,
     // workspace and project-board screen builds its own shell instead, so a
     // call ringing while someone was on a board had nowhere to appear at all.
-    <div className="flex w-full bg-background">
+    /*
+     * inset-safe on the SHELL, which has no padding of its own — so it sets
+     * rather than fights anything (see the note in index.css).
+     *
+     * It matters only once the app is installed. viewport-fit=cover plus
+     * apple-mobile-web-app-status-bar-style=black-translucent make the page
+     * paint edge to edge and UNDER the status bar, which is what makes an
+     * installed PWA look native — and also what would put every page's h-14
+     * header behind the iOS clock, the sidebar rail under the notch in
+     * landscape, and the content panel's last few pixels under the home
+     * indicator. All four insets are 0 in an ordinary browser tab, so the
+     * desktop and in-tab layouts are untouched.
+     */
+    <div className="flex w-full min-w-0 bg-background inset-safe">
       <SidebarProvider
         defaultOpen={sidebarDefaultOpen}
         style={
@@ -121,7 +134,18 @@ function Layout({ children, className }: LayoutProps) {
             // --background would make panel and shell the same colour again
             // and undo the layering — shell, then rail, then this panel, then
             // tinted columns, then white cards.
-            "m-2 flex flex-1 flex-col overflow-auto rounded-xl border border-border/80 bg-card shadow-sm/5",
+            "flex min-w-0 flex-1 flex-col overflow-auto bg-card",
+            /*
+             * The raised-panel treatment is a DESKTOP idea.
+             *
+             * m-2 at an 18px root is 18px of dead space on each side plus a
+             * 1px border and a 12px corner radius — around 40px of a 390px
+             * screen spent on making the content look like a card floating on
+             * a shell you cannot see any of. On a phone the panel IS the
+             * screen, so it goes full-bleed and the layering starts one level
+             * in, at the tinted columns and the white cards.
+             */
+            "sm:m-2 sm:rounded-xl sm:border sm:border-border/80 sm:shadow-sm/5",
             className,
           )}
         >

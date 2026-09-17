@@ -207,7 +207,14 @@ function Sidebar({
     return (
       <Sheet onOpenChange={setOpenMobile} open={openMobile} {...props}>
         <SheetPopup
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          /*
+           * pt/pb-safe, not p-0: this Sheet is portalled to the document, so
+           * it sits OUTSIDE the shell that carries the app's safe-area insets.
+           * Installed on a notched phone that put its header behind the iOS
+           * clock and the last nav item under the home indicator — the two
+           * ends of the one menu on mobile.
+           */
+          className="w-(--sidebar-width) bg-sidebar px-0 pt-safe pb-safe text-sidebar-foreground [&>button]:hidden"
           data-mobile="true"
           data-sidebar="sidebar"
           data-slot="sidebar"

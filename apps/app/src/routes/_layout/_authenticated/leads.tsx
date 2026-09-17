@@ -71,7 +71,7 @@ function LeadsPager({
   };
 
   return (
-    <nav className="flex items-center justify-between border-b border-border/50 bg-card px-4 py-2">
+    <nav className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border/50 bg-card px-3 py-2 sm:px-4">
       <p className="text-xs text-muted-foreground">
         Showing <strong className="text-foreground">{first.toLocaleString()}–{last.toLocaleString()}</strong> of{" "}
         <strong className="text-foreground">{total.toLocaleString()}</strong> leads
@@ -79,10 +79,11 @@ function LeadsPager({
       </p>
 
       {pages > 1 && (
-        <div className="flex items-center gap-1">
+        <div className="flex max-w-full items-center gap-1 overflow-x-auto scroll-x-contain">
           <button
             type="button"
-            className="rounded px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            data-touch-target
+            className="shrink-0 rounded px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
             onClick={() => onPage(page - 1)}
             disabled={busy || page <= 1}
           >
@@ -112,7 +113,8 @@ function LeadsPager({
 
           <button
             type="button"
-            className="rounded px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            data-touch-target
+            className="shrink-0 rounded px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
             onClick={() => onPage(page + 1)}
             disabled={busy || page >= pages}
           >
@@ -271,10 +273,10 @@ function LeadsList() {
      * what made the whole view read as one flat grey sheet: nothing was an
      * object, so nothing had an edge.
      */
-    <div className="flex min-h-0 flex-1 flex-col px-4 pt-3 pb-4">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col px-2 pt-2 pb-2 sm:px-4 sm:pt-3 sm:pb-4">
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs">
         {/* filter bar — same controls, same order as the legacy list */}
-        <div className="flex flex-wrap items-center gap-2 border-border border-b bg-card px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 border-border border-b bg-card px-2.5 py-2.5 sm:px-3">
           {/* Active | Irrelevant — a real segmented control: the selected half
               is a raised surface, not a black slab that reads as a button. */}
           <div className="inline-flex h-8 shrink-0 items-center rounded-lg bg-muted p-0.5">
@@ -361,20 +363,29 @@ function LeadsList() {
             </SelectContent>
           </Select>
 
-          <div className="relative shrink-0">
+          {/*
+            Full width on a phone, fixed on desktop.
+
+            w-60 is 15rem — wider than a third of a 390px screen — and as the
+            last item in a wrapping bar it landed on its own row anyway, half
+            of it empty. Taking the whole row is both tidier and a bigger
+            target, and `basis-full` keeps it on that row rather than trying
+            to share with a select.
+          */}
+          <div className="relative order-last w-full shrink-0 basis-full sm:order-none sm:w-60 sm:basis-auto">
             <Search className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search leads…"
               title="Search company, title or email"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="h-8 w-60 ps-8 text-xs"
+              className="h-8 w-full ps-8 text-xs"
             />
           </div>
 
           {/* The count is the page's one live number, so it gets the only
               tabular figures in the bar and full foreground contrast. */}
-          <div className="ms-auto flex shrink-0 items-center gap-2 ps-2">
+          <div className="flex shrink-0 items-center gap-2 sm:ms-auto sm:ps-2">
             <span
               className="relative flex size-2"
               title="Auto-refreshing every 30 seconds"
@@ -492,9 +503,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Leads" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-border border-b px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="font-heading font-semibold text-xl tracking-[-0.015em]">
+        <h1 className="truncate font-heading font-semibold text-lg tracking-[-0.015em] sm:text-xl">
           Leads
         </h1>
         {/* An underlined-text link was the only affordance out to the board.
@@ -518,7 +529,7 @@ function RouteComponent() {
         defaultValue={tab}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <TabsList className="mx-5 mt-3 w-fit">
+        <TabsList className="mx-3 mt-3 w-fit sm:mx-5">
           <TabsTab value="leads">Leads</TabsTab>
           <TabsTab value="health">System Health</TabsTab>
         </TabsList>
@@ -527,7 +538,7 @@ function RouteComponent() {
           <LeadsList />
         </TabsPanel>
 
-        <TabsPanel value="health" className="overflow-y-auto p-5">
+        <TabsPanel value="health" className="overflow-y-auto p-3 sm:p-5">
           <ScraperHealth />
         </TabsPanel>
       </Tabs>

@@ -218,6 +218,7 @@ function TaskCard({ task, disableDragDrop = false }: TaskCardProps) {
               present for keyboard and touch (focus-within / always-on below sm).
             */}
             <div
+              data-hover-reveal
               className="absolute top-2 right-9 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}

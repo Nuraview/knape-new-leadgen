@@ -411,13 +411,13 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Marketing" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Marketing</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Marketing</h1>
         <Button
           size="sm"
           variant="outline"
-          className="ms-auto h-8 gap-1.5"
+          className="ms-auto h-8 shrink-0 gap-1.5"
           // Compose lives here now. This used to open the legacy app in a new
           // tab, which is the last thing on this screen that still did.
           onClick={() => navigate({ to: "/marketing/compose" })}
@@ -427,7 +427,7 @@ function RouteComponent() {
         </Button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <p className="mb-4 rounded border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Reading is here. Composing, follow-up scheduling and bounce polling
           still run on the legacy app — they move once Inngest and the IMAP
@@ -584,44 +584,48 @@ function RouteComponent() {
                     {followups.data?.items.length}
                   </span>
                 </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-muted-foreground">
-                      <th className="px-4 py-2 text-left font-medium">Recipient</th>
-                      <th className="px-4 py-2 text-left font-medium">Progress</th>
-                      <th className="px-4 py-2 text-left font-medium">Next send</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {followups.data?.items.map((f) => {
-                      const overdue =
-                        f.next_send && new Date(f.next_send).getTime() < Date.now();
-                      return (
-                        <tr key={f.id} className="border-t border-border">
-                          <td className="px-4 py-2.5">
-                            <div className="font-medium">{f.contact_email}</div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {f.subject ?? f.campaign ?? ""}
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <ProgressDots sent={f.sent_steps} total={f.total_steps} />
-                          </td>
-                          <td
-                            className={cn(
-                              "px-4 py-2.5 text-xs",
-                              overdue
-                                ? "text-amber-600 dark:text-amber-400"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {overdue ? "Next overdue" : when(f.next_send)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="table-scroll">
+                  {/* Scrolls on a phone rather than crushing every column to an
+                      ellipsis — see .table-scroll in index.css. */}
+                  <table className="min-w-[42rem] w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-muted-foreground">
+                        <th className="px-4 py-2 text-left font-medium">Recipient</th>
+                        <th className="px-4 py-2 text-left font-medium">Progress</th>
+                        <th className="px-4 py-2 text-left font-medium">Next send</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {followups.data?.items.map((f) => {
+                        const overdue =
+                          f.next_send && new Date(f.next_send).getTime() < Date.now();
+                        return (
+                          <tr key={f.id} className="border-t border-border">
+                            <td className="px-4 py-2.5">
+                              <div className="font-medium">{f.contact_email}</div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {f.subject ?? f.campaign ?? ""}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <ProgressDots sent={f.sent_steps} total={f.total_steps} />
+                            </td>
+                            <td
+                              className={cn(
+                                "px-4 py-2.5 text-xs",
+                                overdue
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {overdue ? "Next overdue" : when(f.next_send)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : null}
           </>
@@ -671,36 +675,40 @@ function RouteComponent() {
         <div className="mt-3 overflow-hidden rounded-lg border border-border bg-card">
           {tab === "inbox" ? (
             openThread === null ? (
-              <table className="w-full text-sm">
-                <tbody>
-                  {(threads.data?.items ?? []).map((th) => (
-                    <tr
-                      key={th.id}
-                      onClick={() => setOpenThread(th.id)}
-                      className="cursor-pointer border-b border-border last:border-0 hover:bg-accent/40"
-                    >
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium">
-                          {th.subject || "(no subject)"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {th.participant ?? "—"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
-                        {th.message_count} msg · {when(th.last_activity_date)}
-                      </td>
-                    </tr>
-                  ))}
-                  {(threads.data?.items ?? []).length === 0 ? (
-                    <tr>
-                      <td className="px-4 py-8 text-center text-muted-foreground">
-                        No threads.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                {/* Scrolls on a phone rather than crushing every column to an
+                    ellipsis — see .table-scroll in index.css. */}
+                <table className="min-w-[42rem] w-full text-sm">
+                  <tbody>
+                    {(threads.data?.items ?? []).map((th) => (
+                      <tr
+                        key={th.id}
+                        onClick={() => setOpenThread(th.id)}
+                        className="cursor-pointer border-b border-border last:border-0 hover:bg-accent/40"
+                      >
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium">
+                            {th.subject || "(no subject)"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {th.participant ?? "—"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
+                          {th.message_count} msg · {when(th.last_activity_date)}
+                        </td>
+                      </tr>
+                    ))}
+                    {(threads.data?.items ?? []).length === 0 ? (
+                      <tr>
+                        <td className="px-4 py-8 text-center text-muted-foreground">
+                          No threads.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <div className="p-4">
                 <Button
@@ -736,32 +744,36 @@ function RouteComponent() {
               </div>
             )
           ) : tab === "sent" ? (
-            <table className="w-full text-sm">
-              <tbody>
-                {(threads.data?.items ?? []).map((th) => (
-                  <tr
-                    key={th.id}
-                    onClick={() => {
-                      setOpenThread(th.id);
-                      setTab("inbox");
-                    }}
-                    className="cursor-pointer border-b border-border last:border-0 hover:bg-accent/40"
-                  >
-                    <td className="px-4 py-2.5">
-                      <div className="font-medium">
-                        {th.subject || "(no subject)"}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {th.participant ?? "—"}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
-                      {th.message_count} msg · {when(th.last_activity_date)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              {/* Scrolls on a phone rather than crushing every column to an
+                  ellipsis — see .table-scroll in index.css. */}
+              <table className="min-w-[42rem] w-full text-sm">
+                <tbody>
+                  {(threads.data?.items ?? []).map((th) => (
+                    <tr
+                      key={th.id}
+                      onClick={() => {
+                        setOpenThread(th.id);
+                        setTab("inbox");
+                      }}
+                      className="cursor-pointer border-b border-border last:border-0 hover:bg-accent/40"
+                    >
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium">
+                          {th.subject || "(no subject)"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {th.participant ?? "—"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
+                        {th.message_count} msg · {when(th.last_activity_date)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : tab === "templates" ? (
             <ul className="divide-y divide-border">
               {(templates.data?.items ?? []).map((tpl) => (
@@ -782,27 +794,31 @@ function RouteComponent() {
               ) : null}
             </ul>
           ) : tab === "contacts" ? (
-            <table className="w-full text-sm">
-              <tbody>
-                {(contacts.data?.items ?? []).map((ct) => (
-                  <tr key={ct.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2.5">
-                      <div className="font-medium">
-                        {[ct.first_name, ct.last_name].filter(Boolean).join(" ") ||
-                          ct.email}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{ct.email}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
-                      {ct.company ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
-                      {when(ct.last_engagement)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              {/* Scrolls on a phone rather than crushing every column to an
+                  ellipsis — see .table-scroll in index.css. */}
+              <table className="min-w-[42rem] w-full text-sm">
+                <tbody>
+                  {(contacts.data?.items ?? []).map((ct) => (
+                    <tr key={ct.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium">
+                          {[ct.first_name, ct.last_name].filter(Boolean).join(" ") ||
+                            ct.email}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{ct.email}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        {ct.company ?? "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
+                        {when(ct.last_engagement)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : tab === "stoplist" ? (
             <div>
               {/* Add form first, not behind a button. Someone reaching this
@@ -848,92 +864,100 @@ function RouteComponent() {
                 follow-up. The dispatcher checks it before every send.
               </p>
 
-              <table className="mt-2 w-full text-sm">
+              <div className="table-scroll">
+                {/* Scrolls on a phone rather than crushing every column to an
+                    ellipsis — see .table-scroll in index.css. */}
+                <table className="min-w-[42rem] mt-2 w-full text-sm">
+                  <tbody>
+                    {(exclusions.data?.items ?? []).map((ex) => (
+                      <tr
+                        key={ex.id}
+                        className="border-b border-border last:border-0"
+                      >
+                        <td className="px-4 py-2.5 font-medium">{ex.email}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">
+                          {ex.reason || "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
+                          {when(ex.created_at ?? ex.createdAt ?? null)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive"
+                            title="Remove — they will start receiving email again"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Remove ${ex.email}? They will start receiving marketing email again.`,
+                                )
+                              )
+                                removeExclusion.mutate(ex.email);
+                            }}
+                            disabled={removeExclusion.isPending}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!exclusions.isLoading &&
+                    (exclusions.data?.items ?? []).length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-4 py-8 text-center text-muted-foreground"
+                        >
+                          Nobody is on the stop list.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="table-scroll">
+              {/* Scrolls on a phone rather than crushing every column to an
+                  ellipsis — see .table-scroll in index.css. */}
+              <table className="min-w-[42rem] w-full text-sm">
                 <tbody>
-                  {(exclusions.data?.items ?? []).map((ex) => (
-                    <tr
-                      key={ex.id}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="px-4 py-2.5 font-medium">{ex.email}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground">
-                        {ex.reason || "—"}
+                  {(sequences.data?.items ?? []).map((s) => (
+                    <tr key={s.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2.5 font-medium">
+                        {s.campaign || `Sequence #${s.id}`}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
-                        {when(ex.created_at ?? ex.createdAt ?? null)}
+                      <td className="px-4 py-2.5">{s.status}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {s.sent_items}/{s.total_items} sent
+                        {s.pending_items ? ` · ${s.pending_items} pending` : ""}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive"
-                          title="Remove — they will start receiving email again"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Remove ${ex.email}? They will start receiving marketing email again.`,
+                        {s.status === "active" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  "Stop this sequence? Its unsent follow-ups will be cancelled.",
+                                )
                               )
-                            )
-                              removeExclusion.mutate(ex.email);
-                          }}
-                          disabled={removeExclusion.isPending}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                                stopSequence.mutate(s.id);
+                            }}
+                            disabled={stopSequence.isPending}
+                          >
+                            <Ban className="size-3.5" />
+                            Stop
+                          </Button>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
-                  {!exclusions.isLoading &&
-                  (exclusions.data?.items ?? []).length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-4 py-8 text-center text-muted-foreground"
-                      >
-                        Nobody is on the stop list.
-                      </td>
-                    </tr>
-                  ) : null}
                 </tbody>
               </table>
             </div>
-          ) : (
-            <table className="w-full text-sm">
-              <tbody>
-                {(sequences.data?.items ?? []).map((s) => (
-                  <tr key={s.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2.5 font-medium">
-                      {s.campaign || `Sequence #${s.id}`}
-                    </td>
-                    <td className="px-4 py-2.5">{s.status}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-                      {s.sent_items}/{s.total_items} sent
-                      {s.pending_items ? ` · ${s.pending_items} pending` : ""}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      {s.status === "active" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                "Stop this sequence? Its unsent follow-ups will be cancelled.",
-                              )
-                            )
-                              stopSequence.mutate(s.id);
-                          }}
-                          disabled={stopSequence.isPending}
-                        >
-                          <Ban className="size-3.5" />
-                          Stop
-                        </Button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           )}
         </div>
       </div>

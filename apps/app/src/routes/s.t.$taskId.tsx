@@ -64,7 +64,7 @@ function RouteComponent() {
 
   if (isLoading) {
     return (
-      <div className="grid min-h-screen place-items-center text-muted-foreground">
+      <div className="grid min-h-dvh-safe place-items-center text-muted-foreground">
         Loading…
       </div>
     );
@@ -75,10 +75,10 @@ function RouteComponent() {
   // cannot be confirmed to exist.
   if (isError || !data) {
     return (
-      <div className="grid min-h-screen place-items-center p-6">
+      <div className="grid min-h-dvh-safe place-items-center p-4 sm:p-6">
         <div className="max-w-md text-center">
           <CircleDashed className="mx-auto mb-4 size-10 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">This card isn't available</h1>
+          <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">This card isn't available</h1>
           <p className="mt-2 text-muted-foreground">
             Either it no longer exists, or your account isn't assigned to its
             project. Ask an admin to add you to the project.
@@ -91,7 +91,7 @@ function RouteComponent() {
   const { task, project, comments } = data;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh-safe bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-6 py-4">
           <img src="/nuraview-logo.png" alt="NuraView" className="h-6 w-auto" />

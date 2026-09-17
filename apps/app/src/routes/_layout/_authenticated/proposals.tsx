@@ -131,7 +131,7 @@ function DetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-5 text-sm">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <div className="text-xs text-muted-foreground">Client</div>
               <div className="mt-0.5 font-medium">
@@ -181,25 +181,29 @@ function DetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Line items
               </h3>
-              <table className="mt-2 w-full text-sm">
-                <tbody>
-                  {data.lineItems.map((li) => (
-                    <tr
-                      key={String(li.id)}
-                      className="border-t border-border align-top"
-                    >
-                      <td className="py-2 pe-2">{String(li.description ?? "")}</td>
-                      <td className="py-2 text-right tabular-nums text-muted-foreground">
-                        {String(li.quantity ?? "")} ×{" "}
-                        {money(String(li.unitPrice ?? "0"), data.currency)}
-                      </td>
-                      <td className="py-2 ps-2 text-right font-medium tabular-nums">
-                        {money(String(li.lineTotal ?? "0"), data.currency)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                {/* Scrolls on a phone rather than crushing every column to an
+                    ellipsis — see .table-scroll in index.css. */}
+                <table className="min-w-[42rem] mt-2 w-full text-sm">
+                  <tbody>
+                    {data.lineItems.map((li) => (
+                      <tr
+                        key={String(li.id)}
+                        className="border-t border-border align-top"
+                      >
+                        <td className="py-2 pe-2">{String(li.description ?? "")}</td>
+                        <td className="py-2 text-right tabular-nums text-muted-foreground">
+                          {String(li.quantity ?? "")} ×{" "}
+                          {money(String(li.unitPrice ?? "0"), data.currency)}
+                        </td>
+                        <td className="py-2 ps-2 text-right font-medium tabular-nums">
+                          {money(String(li.lineTotal ?? "0"), data.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : null}
 
@@ -253,9 +257,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Proposals" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Proposals</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Proposals</h1>
         <div className="ms-auto flex items-center gap-2">
           <Button
             size="sm"
@@ -308,71 +312,75 @@ function RouteComponent() {
               {templates ? "No templates yet." : "No proposals yet."}
             </p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs text-muted-foreground">
-                  <th className="px-5 py-2 text-left font-medium">Title</th>
-                  <th className="px-5 py-2 text-left font-medium">Client</th>
-                  <th className="px-5 py-2 text-left font-medium">Status</th>
-                  <th className="px-5 py-2 text-right font-medium">Total</th>
-                  <th className="px-5 py-2 text-right font-medium">Views</th>
-                  <th className="px-5 py-2 text-right font-medium">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((p) => (
-                  <tr
-                    key={p.id}
-                    onClick={() => setOpenId(p.id)}
-                    className={cn(
-                      "cursor-pointer border-b border-border hover:bg-accent/40",
-                      openId === p.id && "bg-accent/60",
-                    )}
-                  >
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="font-medium">{p.title}</span>
-                        {p.number ? (
-                          <span className="text-xs text-muted-foreground">
-                            #{p.number}
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">
-                      {p.clientCompany || p.clientName || "—"}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={cn(
-                          "rounded border px-1.5 py-0.5 text-xs font-medium",
-                          statusClass(p.status),
-                        )}
-                      >
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right font-medium tabular-nums">
-                      {money(p.grandTotal, p.currency)}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-muted-foreground">
-                      {p.viewCount ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Eye className="size-3" />
-                          {p.viewCount}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-right text-muted-foreground">
-                      {when(p.createdAt)}
-                    </td>
+            <div className="table-scroll">
+              {/* Scrolls on a phone rather than crushing every column to an
+                  ellipsis — see .table-scroll in index.css. */}
+              <table className="min-w-[42rem] w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs text-muted-foreground">
+                    <th className="px-5 py-2 text-left font-medium">Title</th>
+                    <th className="px-5 py-2 text-left font-medium">Client</th>
+                    <th className="px-5 py-2 text-left font-medium">Status</th>
+                    <th className="px-5 py-2 text-right font-medium">Total</th>
+                    <th className="px-5 py-2 text-right font-medium">Views</th>
+                    <th className="px-5 py-2 text-right font-medium">Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {items.map((p) => (
+                    <tr
+                      key={p.id}
+                      onClick={() => setOpenId(p.id)}
+                      className={cn(
+                        "cursor-pointer border-b border-border hover:bg-accent/40",
+                        openId === p.id && "bg-accent/60",
+                      )}
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                          <span className="font-medium">{p.title}</span>
+                          {p.number ? (
+                            <span className="text-xs text-muted-foreground">
+                              #{p.number}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        {p.clientCompany || p.clientName || "—"}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={cn(
+                            "rounded border px-1.5 py-0.5 text-xs font-medium",
+                            statusClass(p.status),
+                          )}
+                        >
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right font-medium tabular-nums">
+                        {money(p.grandTotal, p.currency)}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-muted-foreground">
+                        {p.viewCount ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Eye className="size-3" />
+                            {p.viewCount}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-right text-muted-foreground">
+                        {when(p.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 

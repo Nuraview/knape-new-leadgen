@@ -379,46 +379,50 @@ export function ScraperHealth() {
         <div className="border-b border-border px-4 py-2.5 text-sm font-medium">
           Recent runs
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-muted-foreground">
-              <th className="px-4 py-2 text-left font-medium">Query</th>
-              <th className="px-4 py-2 text-left font-medium">Status</th>
-              <th className="px-4 py-2 text-right font-medium">Found</th>
-              <th className="px-4 py-2 text-right font-medium">New</th>
-              <th className="px-4 py-2 text-right font-medium">Started</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.recent.map((r) => (
-              <tr key={String(r.id)} className="border-t border-border">
-                <td className="max-w-0 truncate px-4 py-2" title={r.query}>
-                  {r.query}
-                </td>
-                <td className={cn("px-4 py-2", statusTone(r.status))}>
-                  {r.status}
-                  {r.error ? (
-                    <span
-                      className="ml-1 text-muted-foreground"
-                      title={r.error}
-                    >
-                      ⓘ
-                    </span>
-                  ) : null}
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">
-                  {r.jobs_found ?? "—"}
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">
-                  {r.jobs_inserted ?? "—"}
-                </td>
-                <td className="px-4 py-2 text-right text-muted-foreground">
-                  {ago(r.started_at)}
-                </td>
+        <div className="table-scroll">
+          {/* Scrolls on a phone rather than crushing every column to an
+              ellipsis — see .table-scroll in index.css. */}
+          <table className="min-w-[42rem] w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted-foreground">
+                <th className="px-4 py-2 text-left font-medium">Query</th>
+                <th className="px-4 py-2 text-left font-medium">Status</th>
+                <th className="px-4 py-2 text-right font-medium">Found</th>
+                <th className="px-4 py-2 text-right font-medium">New</th>
+                <th className="px-4 py-2 text-right font-medium">Started</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.recent.map((r) => (
+                <tr key={String(r.id)} className="border-t border-border">
+                  <td className="max-w-0 truncate px-4 py-2" title={r.query}>
+                    {r.query}
+                  </td>
+                  <td className={cn("px-4 py-2", statusTone(r.status))}>
+                    {r.status}
+                    {r.error ? (
+                      <span
+                        className="ml-1 text-muted-foreground"
+                        title={r.error}
+                      >
+                        ⓘ
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {r.jobs_found ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {r.jobs_inserted ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 text-right text-muted-foreground">
+                    {ago(r.started_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

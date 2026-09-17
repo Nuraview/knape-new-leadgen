@@ -353,7 +353,7 @@ export function PublicProposalView({
 
   return (
     <div
-      className="pv-root min-h-screen text-stone-900"
+      className="pv-root min-h-dvh-safe text-stone-900"
       style={{ backgroundColor: pageBg, ["--pv-accent" as string]: brand }}
       {...(pdfMode ? { "data-pv-pdf-ready": "" } : {})}
     >

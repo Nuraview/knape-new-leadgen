@@ -156,9 +156,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Live Lead Finder" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Live Lead Finder</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Live Lead Finder</h1>
         {running ? (
           <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-500">
             running
@@ -166,7 +166,7 @@ function RouteComponent() {
         ) : null}
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <div className="mx-auto max-w-4xl space-y-5">
           {alerts.length ? (
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-500">

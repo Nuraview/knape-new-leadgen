@@ -183,7 +183,7 @@ export function StatsPane() {
               */}
               {stats.data?.by_angle?.length ? (
                 <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[42rem] text-sm">
                     <thead className="bg-muted/40 text-left">
                       <tr>
                         {["Angle", "Sent", "Opened", "Clicked"].map((h) => (

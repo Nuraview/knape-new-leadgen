@@ -269,6 +269,7 @@ export function RepositoryBrowserModal({
                               e.stopPropagation();
                               window.open(repository.html_url, "_blank");
                             }}
+                            data-hover-reveal
                             className="opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <ExternalLink className="w-4 h-4" />

@@ -148,19 +148,22 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Orders" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Orders &amp; Purchases</h1>
-        <span className="text-sm text-muted-foreground">
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Orders &amp; Purchases</h1>
+        <span className="hidden text-sm text-muted-foreground sm:inline">
           {rows.length ? `${rows.length} orders` : ""}
         </span>
-        <Button className="ms-auto" onClick={() => setCreating((v) => !v)}>
+        <Button
+          className="ms-auto shrink-0"
+          onClick={() => setCreating((v) => !v)}
+        >
           <Plus className="size-4" />
           New order
         </Button>
       </header>
 
-      <div className="flex-1 overflow-auto p-5">
+      <div className="flex-1 overflow-auto p-3 sm:p-5">
         {invite ? (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
             <span className="text-emerald-500">
@@ -258,7 +261,7 @@ function RouteComponent() {
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[42rem] text-sm">
               <thead className="bg-muted/40 text-left">
                 <tr>
                   {[

@@ -271,6 +271,81 @@ input:-webkit-autofill:active {
     font-size: 112.5%;
   }
 
+  /*
+   * ...but NOT on a phone.
+   *
+   * 18px base multiplies every rem in the app: type, padding, control heights
+   * and the sidebar's own --sidebar-width. That is right on a 27" monitor and
+   * wrong on a 390px screen, where it is the single largest cause of content
+   * running off the side — a toolbar that fits in 1200 logical pixels needs
+   * 1350 at this scale, so it overflows a phone twice over.
+   *
+   * Scaling the ROOT back down rather than re-tuning components keeps one
+   * source of truth for density, exactly as the note above intends: the
+   * desktop design is untouched, and the phone gets the same layout at a size
+   * that fits it. 100% (16px) is also the browser default, so tap targets and
+   * text land on the sizes mobile platforms are tuned for.
+   */
+  @media (width < 48rem) {
+    html {
+      font-size: 100%;
+    }
+  }
+
+  @media (width < 26rem) {
+    html {
+      font-size: 93.75%; /* 15px — small Androids and the iPhone SE */
+    }
+  }
+
+  /*
+   * No sideways scroll, ever.
+   *
+   * One over-wide child used to drag the whole document horizontally, which on
+   * touch means every vertical swipe near the edge slides the page instead of
+   * scrolling it. Clipping at the root turns that class of bug into a
+   * contained one: the offending panel scrolls itself, the app does not.
+   */
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  body {
+    /* Installed, the app has no browser chrome to absorb a rubber-band
+       scroll, so overscroll at the top reads as the whole UI coming loose. */
+    overscroll-behavior-y: none;
+    /* iOS Safari paints a grey flash over anything tapped, including whole
+       rows and cards, which looks like a rendering fault rather than
+       feedback. The app draws its own :active states. */
+    -webkit-tap-highlight-color: transparent;
+    /* Safari inflates text in landscape unless told not to. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /*
+   * Stop iOS zooming the viewport on focus.
+   *
+   * Mobile Safari zooms in whenever a focused field's text is under 16px, and
+   * it does not zoom back out — so one tap on a filter input leaves the user
+   * stranded on a magnified, horizontally-scrolling page. Almost every input
+   * in this app is text-xs or text-sm by design, so the fix is a floor on the
+   * FONT SIZE of the control itself, applied only where the zoom happens.
+   *
+   * `max-width` rather than a hover query: it is the small viewport that
+   * zooms, and matching on pointer type would also catch touch laptops, where
+   * the 16px floor would visibly break the dense desktop toolbars.
+   */
+  @media (width < 48rem) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: max(1rem, 16px);
+    }
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
@@ -1406,4 +1481,195 @@ input:-webkit-autofill:active {
     background: color-mix(in srgb, var(--primary) 18%, transparent);
   }
 
+}
+
+/* ==========================================================================
+   MOBILE / TOUCH / INSTALLED-APP LAYER
+   ==========================================================================
+
+   Everything below exists because this CRM is now used on a phone and
+   installed to a home screen, not only in a desktop browser window. Each rule
+   fixes a class of bug rather than one screen, so a new page inherits the fix
+   instead of reintroducing the problem.
+   ========================================================================== */
+
+@layer base {
+  /*
+   * Hover-revealed row actions, on a device with no hover.
+   *
+   * The leads list, the kanban card, the comment card and the workspace
+   * switcher all hide their action buttons at opacity-0 and bring them back on
+   * :hover. A touch screen never hovers, so on a phone those controls were
+   * present in the DOM, focusable by a screen reader, and invisible and
+   * unusable to everyone else — "open on Upwork" simply did not exist on
+   * mobile.
+   *
+   * Marking the container with data-hover-reveal lets one query fix all of
+   * them: keep the quiet desktop behaviour, show them unconditionally wherever
+   * hover is not available.
+   */
+  @media (hover: none) {
+    [data-hover-reveal] {
+      opacity: 1 !important;
+    }
+  }
+
+  /*
+   * Touch targets.
+   *
+   * The desktop design leans on 24-28px icon buttons, which is comfortable
+   * with a mouse and roughly half of the 44px both Apple and Google publish as
+   * the minimum for a finger. Rather than resize the buttons — that would
+   * change every layout — the tap area is grown OUTWARD with a pseudo-element,
+   * so the control looks identical and the region that responds to a thumb is
+   * the one a thumb can hit.
+   */
+  @media (pointer: coarse) {
+    button,
+    [role="button"],
+    a[href],
+    summary,
+    label:has(> input[type="checkbox"]),
+    label:has(> input[type="radio"]) {
+      /* Chrome/Safari suppress the 300ms double-tap-to-zoom wait when the
+         element opts out of pinch handling, which is what makes taps in this
+         app feel slow rather than unresponsive. */
+      touch-action: manipulation;
+    }
+
+    /*
+     * Opt-in minimum size for the small icon controls.
+     *
+     * Deliberately an explicit attribute and a real min-width/min-height
+     * rather than a blanket rule with a 44px pseudo-element hit box. A row of
+     * 24px icon buttons sitting 2px apart, each given an invisible 44px
+     * target, produces OVERLAPPING targets — and then a thumb aimed at
+     * "archive" lands on "delete", which is worse than a small button. Growing
+     * the control itself keeps the target and the thing you can see the same
+     * shape, and the flex gap keeps them apart.
+     */
+    [data-touch-target] {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
+
+  /*
+   * Form controls stay tappable once the 16px text floor above applies.
+   * Without a matching height the taller text crowds a h-8 control to its
+   * edges and the caret clips.
+   */
+  @media (width < 48rem) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    [data-slot="select-trigger"],
+    textarea {
+      min-height: 2.25rem;
+    }
+  }
+}
+
+@layer utilities {
+  /*
+   * Viewport height that survives a mobile browser.
+   *
+   * 100vh on iOS Safari and Android Chrome means "the viewport with the URL
+   * bar hidden", which is taller than what you can actually see — so a
+   * h-screen shell puts its own footer, and any sign-in button in it, below
+   * the fold with no way to scroll to it. dvh tracks the visible area as the
+   * chrome slides away.
+   *
+   * Used in place of h-screen / min-h-screen anywhere the element is a full
+   * page rather than a box inside one.
+   */
+  .h-dvh-safe {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .min-h-dvh-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /*
+   * Safe-area insets, for the notch and the home indicator.
+   *
+   * These are zero in a browser tab and non-zero once the app is INSTALLED
+   * with `viewport-fit=cover` — which is what makes an installed PWA paint
+   * edge to edge instead of being letterboxed. Without them a bottom action
+   * bar sits under the iOS home indicator and a top bar under the notch.
+   *
+   * READ THIS BEFORE USING ONE. They SET padding, they do not add to it, so
+   * `pb-3 pb-safe` is not "12px plus the inset" — the two declare the same
+   * property, whichever loses the cascade is discarded, and in a browser tab
+   * (inset: 0) the 12px can silently vanish. Use these only on an element
+   * with no other padding on that axis.
+   *
+   * Where a floor is wanted, spell it out at the call site with max():
+   *
+   *   pb-[max(0.75rem,env(safe-area-inset-bottom))]
+   *   px-[max(1rem,env(safe-area-inset-left))]
+   *
+   * which is one declaration and cannot be half-applied.
+   */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .px-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* The four insets at once, for a full-bleed shell that has none of its own. */
+  .inset-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /*
+   * A table that is wider than the phone.
+   *
+   * A CRM table has an irreducible minimum width — six columns of real data
+   * do not become readable by being squeezed to 320px, they become unreadable.
+   * So the table keeps its width and its WRAPPER scrolls, which is the one
+   * arrangement that does not also drag the page sideways. `touch` gives it
+   * the momentum flick users expect from a horizontally scrolling region.
+   */
+  .table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Horizontal strips (filter bars, kanban columns, tab rails) that should
+     flick rather than clip, and should not bounce the page with them. */
+  .scroll-x-contain {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .scroll-x-contain::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Opt a strip into scroll-snapping so a swipe lands on a column edge
+     instead of halfway across two. */
+  .snap-strip {
+    scroll-snap-type: x proximity;
+  }
+
+  .snap-strip > * {
+    scroll-snap-align: start;
+  }
 }

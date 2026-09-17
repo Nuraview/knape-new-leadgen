@@ -201,7 +201,16 @@ export default function CommentCard({
         </div>
 
         {canEdit && !isEditing && (
-          <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div
+            /*
+             * data-hover-reveal: edit and delete are hover-revealed, and a
+             * touch screen has no hover — without it there is no way to edit
+             * or delete your own comment from a phone at all. One
+             * `@media (hover: none)` rule in index.css answers the attribute.
+             */
+            data-hover-reveal
+            className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+          >
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

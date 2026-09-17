@@ -263,12 +263,12 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Daily Activity" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Daily Activity</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Daily Activity</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         <div className="space-y-6">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">
@@ -323,51 +323,55 @@ function RouteComponent() {
                 </div>
               </div>
 
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-muted-foreground">
-                    <th className="px-5 py-2 text-left font-medium">Day</th>
-                    <th className="px-5 py-2 text-right font-medium">Calls</th>
-                    <th className="px-5 py-2 text-right font-medium">Emails</th>
-                    <th className="px-5 py-2 text-right font-medium">Projects</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {days.map((d) => {
-                    const isToday = d.date === today.date;
-                    return (
-                      <tr
-                        key={d.date}
-                        className={`border-t border-border ${isToday ? "bg-muted/40" : ""}`}
-                      >
-                        <td className="px-5 py-2.5">
-                          {isToday ? (
-                            <span className="font-semibold">Today</span>
-                          ) : (
-                            fmtDate(d.date, {
-                              weekday: "short",
-                              day: "2-digit",
-                              month: "short",
-                            })
-                          )}
-                        </td>
-                        <td
-                          className="px-5 py-2.5 text-right font-semibold tabular-nums"
-                          style={{ color: d.calls ? callsHex(d.calls) : undefined }}
+              <div className="table-scroll">
+                {/* Scrolls on a phone rather than crushing every column to an
+                    ellipsis — see .table-scroll in index.css. */}
+                <table className="min-w-[42rem] w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-muted-foreground">
+                      <th className="px-5 py-2 text-left font-medium">Day</th>
+                      <th className="px-5 py-2 text-right font-medium">Calls</th>
+                      <th className="px-5 py-2 text-right font-medium">Emails</th>
+                      <th className="px-5 py-2 text-right font-medium">Projects</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {days.map((d) => {
+                      const isToday = d.date === today.date;
+                      return (
+                        <tr
+                          key={d.date}
+                          className={`border-t border-border ${isToday ? "bg-muted/40" : ""}`}
                         >
-                          {d.calls}
-                        </td>
-                        <td className="px-5 py-2.5 text-right tabular-nums">
-                          {d.emails}
-                        </td>
-                        <td className="px-5 py-2.5 text-right tabular-nums">
-                          {d.views}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          <td className="px-5 py-2.5">
+                            {isToday ? (
+                              <span className="font-semibold">Today</span>
+                            ) : (
+                              fmtDate(d.date, {
+                                weekday: "short",
+                                day: "2-digit",
+                                month: "short",
+                              })
+                            )}
+                          </td>
+                          <td
+                            className="px-5 py-2.5 text-right font-semibold tabular-nums"
+                            style={{ color: d.calls ? callsHex(d.calls) : undefined }}
+                          >
+                            {d.calls}
+                          </td>
+                          <td className="px-5 py-2.5 text-right tabular-nums">
+                            {d.emails}
+                          </td>
+                          <td className="px-5 py-2.5 text-right tabular-nums">
+                            {d.views}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : null}
         </div>

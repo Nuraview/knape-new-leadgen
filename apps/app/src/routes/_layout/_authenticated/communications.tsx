@@ -299,9 +299,9 @@ function RouteComponent() {
     <Layout>
       <PageTitle title="Communications" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="text-xl font-semibold">Communications</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Communications</h1>
         {/*
           "received", not just a bare count. Every number on this page is mail
           that came IN; the send figures live on Home and Outreach. Left
@@ -313,7 +313,7 @@ function RouteComponent() {
           number spans, or which one when it is filtered.
         */}
         {MAILBOX_TABS.has(tab) && inbox.data?.count ? (
-          <span className="text-sm text-muted-foreground">
+          <span className="hidden text-sm text-muted-foreground sm:inline">
             {inbox.data.count} {folder === "sent" ? "sent from" : "in"}{" "}
             {account
               ? account
@@ -323,13 +323,24 @@ function RouteComponent() {
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex items-center gap-1 border-b border-border px-5 py-2">
+        {/*
+          Ten tabs in a row that does not wrap and does not scroll.
+
+          On a phone that came to well over the width of the screen, and now
+          that the document clips its own horizontal overflow (index.css) the
+          tabs past "trash" were not merely off-screen — they were CUT OFF,
+          with no way to reach compose, recovery or the outbox at all. A
+          scrolling strip is the right shape here rather than wrapping: the
+          order is meaningful and three stacked rows of tabs would push the
+          mail itself below the fold.
+        */}
+        <div className="scroll-x-contain flex items-center gap-1 border-b border-border px-3 py-2 sm:px-5">
           {TABS.map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`rounded-md px-3 py-1.5 text-sm capitalize ${
+              className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm capitalize ${
                 tab === t
                   ? "bg-muted font-medium text-foreground"
                   : "text-muted-foreground hover:text-foreground"
@@ -437,7 +448,7 @@ function RouteComponent() {
           </div>
         ) : null}
 
-        <div className="flex-1 overflow-auto p-5">
+        <div className="flex-1 overflow-auto p-3 sm:p-5">
           {active?.isLoading ? (
             <div className="space-y-2">
               {[0, 1, 2, 3, 4].map((i) => (
@@ -536,6 +547,7 @@ function RouteComponent() {
                         onClick={() => trashMsg.mutate(String(m.id))}
                         disabled={trashMsg.isPending}
                         title="Move to Trash"
+                        data-hover-reveal
                         className="absolute end-2 top-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover:opacity-100 disabled:opacity-40"
                       >
                         Trash
@@ -565,7 +577,7 @@ function RouteComponent() {
           ) : tab === "campaign log" ? (
             <>
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[42rem] text-sm">
                 <thead className="bg-muted/40 text-left">
                   <tr>
                     {[
@@ -711,7 +723,7 @@ function RouteComponent() {
                 </p>
               ) : null}
               <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[42rem] text-sm">
                   <thead className="bg-muted/40 text-left">
                     <tr>
                       {["Company", "Address", "Reason", "Alternate", "When"].map(
@@ -810,7 +822,7 @@ function RouteComponent() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[42rem] text-sm">
                 <thead className="bg-muted/40 text-left">
                   <tr>
                     {["To", "Subject", "Sent"].map((h) => (

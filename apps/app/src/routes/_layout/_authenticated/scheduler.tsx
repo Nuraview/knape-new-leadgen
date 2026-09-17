@@ -114,9 +114,9 @@ function RouteComponent() {
   return (
     <Layout>
       <PageTitle title="Scheduler" />
-      <header className="flex h-14 shrink-0 items-center gap-3 border-border border-b px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:gap-3 sm:px-5">
         <SidebarTrigger className="-ms-1" />
-        <h1 className="font-semibold text-xl">Scheduler</h1>
+        <h1 className="min-w-0 truncate font-semibold text-lg sm:text-xl">Scheduler</h1>
         <span className="text-muted-foreground text-sm">
           {items.length} post{items.length === 1 ? "" : "s"} in view
         </span>
@@ -125,7 +125,7 @@ function RouteComponent() {
         </Button>
       </header>
 
-      <div className="flex-1 space-y-4 overflow-auto p-5">
+      <div className="flex-1 space-y-4 overflow-auto p-3 sm:p-5">
         <p className="m-0 max-w-[80ch] text-muted-foreground text-sm">
           Write the post, attach the creative, check it against the feed, then
           send it for review. Publishing is manual for now: post approved content

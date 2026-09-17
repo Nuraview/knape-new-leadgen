@@ -79,7 +79,7 @@ export function SentVolume() {
         </span>
       </div>
 
-      <div className="mt-4 grid gap-5 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5">
         {/*
           The hint used to read "288 more can go out today" straight off the
           mailbox cap, directly below a panel saying "12 ready to email now".
