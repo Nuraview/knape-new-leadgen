@@ -5,6 +5,13 @@ declare const __APP_VERSION__: string;
 
 type ImportMetaEnv = {
   readonly NURAVIEW_API_URL: string;
+  /**
+   * "true" builds the app with the seeded outreach dataset in lib/demo, for
+   * walkthroughs and screenshots on an instance that is not sending yet. Such
+   * a build always carries the sample-data banner. Anything else — unset, a
+   * typo, "false" — is an ordinary build serving real data.
+   */
+  readonly VITE_DEMO_DATA?: string;
 };
 
 type ImportMeta = {

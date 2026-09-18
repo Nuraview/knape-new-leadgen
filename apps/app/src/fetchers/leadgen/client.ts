@@ -1,4 +1,6 @@
 import { getApiUrl } from "@/fetchers/get-api-url";
+import { demoDataEnabled } from "@/lib/demo/enabled";
+import { demoResponse } from "@/lib/demo/responses";
 
 /**
  * Talks to the lead-gen cockpit through the CRM's own API.
@@ -30,6 +32,25 @@ async function request<T>(
   init?: RequestInit & { query?: Record<string, string | number | undefined | null> },
 ): Promise<T> {
   const { query, ...rest } = init ?? {};
+
+  /*
+   * DEMO BUILDS ONLY. One gate, here, rather than a branch in every component.
+   *
+   * This is the single place the seeded dataset can enter the app, which is
+   * the point: with VITE_DEMO_DATA unset, demoResponse is not consulted and
+   * every call goes to the cockpit exactly as it did before. Putting it at the
+   * fetcher means the pages, the query keys and the loading states are the
+   * real ones — a demo that renders through a different code path is a demo of
+   * something you do not ship.
+   *
+   * Reads only. A POST is an action, and a demo build must not pretend to have
+   * performed one: sending, approving and deleting fall through to the API and
+   * fail honestly if it is not there.
+   */
+  if (demoDataEnabled && (rest.method ?? "GET").toUpperCase() === "GET") {
+    const canned = demoResponse<T>(path, query);
+    if (canned !== undefined) return canned;
+  }
   /*
    * getApiUrl returns either a same-origin "/api/…" or an absolute base (local
    * dev against a remote API). `new URL(value, origin)` handles both: an
