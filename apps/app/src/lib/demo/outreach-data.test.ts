@@ -66,6 +66,20 @@ describe("demo outreach dataset", () => {
     expect(page.items).toHaveLength(60);
   });
 
+  it("engagement rows use the cockpit's own column names", () => {
+    // to_email / bounce_info, not email / reason. When these drifted the
+    // dashboard printed the literal string "undefined" and linked to
+    // mailto:undefined.
+    const opened = demoEngagement("opened").items[0];
+    expect(opened).toHaveProperty("to_email");
+    expect(String(opened.to_email)).toContain("@");
+    expect(opened).not.toHaveProperty("email");
+
+    const bounced = demoEngagement("bounced").items[0];
+    expect(bounced).toHaveProperty("bounce_info");
+    expect(bounced).not.toHaveProperty("reason");
+  });
+
   it("clicked engagement is always empty", () => {
     expect(demoEngagement("clicked").items).toEqual([]);
     expect(demoEngagement("opened").items.length).toBeGreaterThan(0);

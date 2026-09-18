@@ -415,17 +415,30 @@ export function demoEngagement(kind: string): {
 
   return {
     kind,
+    /*
+     * Keys MUST match email_store.engagement_list, which selects
+     * `sq.to_email` and `st.bounce_info`. This mapping used `email` and
+     * `reason`, so the dashboard read row.to_email as undefined and printed
+     * the literal string "undefined" — with a mailto:undefined link beside
+     * it. Demo data that does not have the real data's shape tests the wrong
+     * thing and, worse, invents bugs that are not in the product.
+     */
     items: pick.slice(0, 100).map((r) => ({
+      id: r.id,
       company: r.company,
       person_name: r.person_name,
-      email: r.to_email,
+      to_email: r.to_email,
       subject: r.subject,
       angle: r.angle,
       sent_at: r.sent_at,
-      open_count: r.open_count,
       first_open_at: r.first_open_at,
+      open_count: r.open_count,
+      click_at: null,
       click_count: 0,
-      bounced: r.bounced,
+      bounce_at: r.bounced ? r.sent_at : null,
+      bounce_info: r.bounced
+        ? "550 5.1.1 recipient address rejected: user unknown"
+        : null,
     })),
   };
 }
@@ -472,11 +485,14 @@ export function demoBounced() {
     .filter((r) => r.bounced === 1)
     .map((r) => ({
       id: r.id,
-      email: r.to_email,
+      // to_email / bounce_info, as the cockpit names them. See the note above.
+      to_email: r.to_email,
       company: r.company,
+      person_name: r.person_name,
       subject: r.subject,
       sent_at: r.sent_at,
-      reason: "550 5.1.1 recipient address rejected: user unknown",
+      bounce_at: r.sent_at,
+      bounce_info: "550 5.1.1 recipient address rejected: user unknown",
     }));
   return { items, total: items.length };
 }

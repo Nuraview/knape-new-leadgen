@@ -2894,19 +2894,52 @@ def _live_variant() -> str:
 
 @app.post("/api/emails/preview")
 def email_preview(body: EmailPreviewInput, _user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
-    """Render copy through the production email template (exact HTML that sends,
-    including the per-angle designed creative when one exists)."""
-    from outreach.email_sender import _body_to_html
+    """Render copy exactly as it will send.
+
+    "Exactly" is the whole contract of this endpoint, and it was broken the
+    moment sending moved to plain text: it called _body_to_html
+    unconditionally, so the dashboard kept previewing the designed frame —
+    photo header, creative banner, signature card — for mail that now leaves as
+    one text/plain part. A preview that disagrees with the send is worse than
+    no preview, because it is trusted: copy gets approved against a layout
+    nobody will ever receive.
+
+    So the format follows the same switch the sender uses. When plain text is
+    live, the preview is the plain body plus the real sign-off, and `html` is
+    returned empty rather than filled with a frame that is not being sent.
+    """
+    from outreach.email_sender import (
+        _append_plain_signature,
+        _body_to_html,
+        _plain_text_only,
+    )
     from outreach.messaging_angles import dedash
+
+    copy = dedash(body.body or "")
+    from_email = body.from_email or ""
+
+    if _plain_text_only():
+        return {
+            # The sign-off is appended here, not by the caller, for the same
+            # reason the sender appends it: it is part of the message, and a
+            # preview without it understates the length and omits the only
+            # place the company name appears.
+            "text": _append_plain_signature(copy, from_email),
+            "html": "",
+            "format": "text",
+            "variant": "",
+            "live_variant": "",
+        }
 
     return {
         "html": _body_to_html(
-            dedash(body.body or ""),
-            body.from_email or "",
+            copy,
+            from_email,
             angle=body.angle or "",
             step_index=body.step_index if body.step_index is not None else -1,
             variant=body.variant,
         ),
+        "format": "html",
         "variant": (body.variant or "").strip().lower() or _live_variant(),
         "live_variant": _live_variant(),
     }

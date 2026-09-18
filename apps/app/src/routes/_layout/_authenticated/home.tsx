@@ -274,20 +274,34 @@ function RouteComponent() {
                       key={`${row.id ?? i}`}
                       className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm"
                     >
+                      {/*
+                        String() on a missing field yields the literal
+                        "undefined" — which is what this row printed, and what
+                        the mailto below linked to. A dashboard should degrade
+                        to saying nothing, never to printing a JavaScript
+                        value at the reader.
+                      */}
                       <span className="font-medium">
-                        {String(row.person_name || row.company || row.to_email)}
+                        {String(
+                          row.person_name ||
+                            row.company ||
+                            row.to_email ||
+                            "Unknown recipient",
+                        )}
                       </span>
                       {row.person_name && row.company ? (
                         <span className="text-muted-foreground">
                           {String(row.company)}
                         </span>
                       ) : null}
-                      <a
-                        href={`mailto:${String(row.to_email)}`}
-                        className="text-xs text-muted-foreground underline underline-offset-2"
-                      >
-                        {String(row.to_email)}
-                      </a>
+                      {row.to_email ? (
+                        <a
+                          href={`mailto:${String(row.to_email)}`}
+                          className="text-xs text-muted-foreground underline underline-offset-2"
+                        >
+                          {String(row.to_email)}
+                        </a>
+                      ) : null}
                       <span className="ms-auto flex items-center gap-3 text-xs">
                         {tab === "bounced" ? (
                           <span className="text-red-500">
@@ -395,6 +409,20 @@ function RouteComponent() {
               ) : null}
               {angles.isLoading || preview.isLoading ? (
                 <Skeleton className="h-[28rem]" />
+              ) : preview.data?.format === "text" || preview.data?.text ? (
+                /*
+                 * Plain text, shown as plain text.
+                 *
+                 * An iframe rendering a text body puts it through the
+                 * browser's default HTML styling — Times New Roman, collapsed
+                 * blank lines, no wrapping control — so the copy on screen
+                 * looked nothing like the mail that leaves. A <pre> with the
+                 * message font is what the recipient actually sees in their
+                 * client, line breaks and all.
+                 */
+                <pre className="h-[28rem] w-full overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-white p-4 font-sans text-[13px] leading-relaxed text-stone-900">
+                  {preview.data.text}
+                </pre>
               ) : (
                 <iframe
                   title="Email preview"
@@ -406,7 +434,11 @@ function RouteComponent() {
               <p className="mt-2 text-xs text-muted-foreground">
                 Ten versions rotate across companies, each with its own follow-up
                 sequence. Every company is written to by name.
-                {preview.data?.live_variant ? (
+                {preview.data?.format === "text" || preview.data?.text ? (
+                  <>
+                    {" "}Sending as plain text — no HTML, no tracking pixel.
+                  </>
+                ) : preview.data?.live_variant ? (
                   <>
                     {" "}Currently sending{" "}
                     <strong className="text-foreground">

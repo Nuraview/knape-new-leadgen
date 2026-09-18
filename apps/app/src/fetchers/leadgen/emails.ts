@@ -286,8 +286,13 @@ export type ScheduledResponse = {
 /** What the recipient will actually see: copy rendered through the production
  *  template, including the per-angle designed creative. */
 export type EmailPreview = {
+  /** Empty when the instance sends plain text — read `text` instead. */
   html: string;
-  /** Which design was drawn. */
+  /** The message as it will actually send, sign-off included. */
+  text?: string;
+  /** "text" | "html" — which of the two above is the real one. */
+  format?: "text" | "html";
+  /** Which design was drawn. Empty in plain-text mode: there is no design. */
   variant?: string;
   /** Which design is actually being sent, from the dashboard setting. */
   live_variant?: string;
