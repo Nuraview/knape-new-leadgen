@@ -56,7 +56,6 @@ export function DemoAlert() {
         className="inline-flex cursor-default items-center gap-1.5 font-medium text-[11px] text-warning-foreground/90 uppercase tracking-[0.08em]"
       >
         <FlaskConical className="size-3.5 shrink-0" aria-hidden />
-        Sample data
       </span>
 
       {isVendorDemoHost && (
