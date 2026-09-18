@@ -327,7 +327,27 @@ MILESTONE2_FOLLOWUP_GAP_DAYS = os.getenv("MILESTONE2_FOLLOWUP_GAP_DAYS", "3,5").
 MILESTONE2_SEND = os.getenv("MILESTONE2_SEND", "").lower() in ("1", "true", "yes")
 # Shown in copy + From display name; use dedicated outreach subdomain in production DNS.
 OUTREACH_SUBDOMAIN = os.getenv("OUTREACH_SUBDOMAIN", "").strip()
-OUTREACH_SENDER_NAME = os.getenv("OUTREACH_SENDER_NAME", "HVAC outreach").strip()
+#: Who the outreach copy signs off as.
+#:
+#: This is the ``{signer}`` every messaging angle ends on, so it is the name a
+#: stranger reads at the bottom of a cold email — and it defaulted to the
+#: literal string "HVAC outreach". Unset (it is not in any .env), every
+#: angle-generated email on this instance signed off "HVAC outreach" instead of
+#: the person sending it. A cold email signed by a category rather than a human
+#: is the one thing plain text cannot survive.
+#:
+#: The fallback chain now ends at the brand's own signature name, which is
+#: where every other user-visible name in this product comes from
+#: (BRAND_SIGNATURE_NAME, then BRAND_NAME). Read inline rather than through
+#: outreach.brand because config is imported before it and must not depend on
+#: it. Same failure, and the same fix, as the HTML signature card in
+#: email_sender._sender_name.
+OUTREACH_SENDER_NAME = (
+    os.getenv("OUTREACH_SENDER_NAME")
+    or os.getenv("BRAND_SIGNATURE_NAME")
+    or os.getenv("BRAND_NAME")
+    or ""
+).strip()
 OUTREACH_FROM_EMAIL = os.getenv("OUTREACH_FROM_EMAIL", "").strip()
 OUTREACH_FROM_NAME = os.getenv("OUTREACH_FROM_NAME", "").strip()
 OUTREACH_SMTP_HOST = os.getenv("OUTREACH_SMTP_HOST", "").strip()

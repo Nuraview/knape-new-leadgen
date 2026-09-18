@@ -31,6 +31,7 @@ import {
   KanbanSquare,
   LayoutGrid,
   type LucideIcon,
+  Mail,
   Mailbox,
   Radar,
   Send,
@@ -99,6 +100,35 @@ const LEADGEN_ITEMS: CrmNavItem[] = [
   { title: "Inbound", icon: Inbox, to: "/inbound" },
   { title: "Live Finder", icon: Radar, to: "/finder" },
   { title: "Outreach", icon: Send, to: "/emails" },
+  /*
+   * Email: the two mailboxes people actually live in.
+   *
+   * This REPLACES the flat "Communications" entry that used to be appended in
+   * withLeadgen below. One link into a ten-tab page always landed on Replies
+   * and left you to find the rest — and because the tab was component state,
+   * there was no way to point at any other one even if the nav had wanted to
+   * (see validateSearch on the route, added for this).
+   *
+   * Inbox and Sent, because those are the two things anyone opens mail for.
+   * Both are ?tab= views of the one route, which is why they read like the
+   * Marketing children below.
+   *
+   * "Inbox" maps to tab=all, not tab=replies: an inbox means everything that
+   * came in. Replies is a FILTER on that, and the page still offers it.
+   *
+   * It sits here in LEADGEN_ITEMS rather than being appended conditionally,
+   * which is the same thing — this whole list is only used when
+   * config.hasLeadgen is true — with one fewer place to look.
+   */
+  {
+    title: "Email",
+    icon: Mail,
+    to: "/communications?tab=all",
+    children: [
+      { title: "Inbox", to: "/communications?tab=all" },
+      { title: "Sent", to: "/communications?tab=sent" },
+    ],
+  },
   { title: "Inboxes", icon: Mailbox, to: "/inboxes" },
   // The cockpit's own settings registry — scraper cadence, target states,
   // enrichment caps, send caps and the vendor keys. Named "Pipeline settings"
@@ -276,12 +306,9 @@ export function NavCrm() {
   const withLeadgen =
     config?.hasLeadgen === true
       ? [
+          // Communications is no longer appended here: it is the "Email" group
+          // in LEADGEN_ITEMS, split into Inbox and Sent.
           ...LEADGEN_ITEMS,
-          {
-            title: "Communications",
-            icon: Mailbox,
-            to: "/communications",
-          } as CrmNavItem,
           ...ITEMS.filter(
             (item) =>
               item.title !== "Leads" &&

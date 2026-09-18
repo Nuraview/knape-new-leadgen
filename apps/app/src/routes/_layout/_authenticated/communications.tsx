@@ -14,7 +14,7 @@
  *   Outbox    manually composed mail, kept apart from campaign sends.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import Layout from "@/components/common/layout";
 import PageTitle from "@/components/page-title";
@@ -165,7 +165,16 @@ function when(value: number | string | undefined): string {
 
 function RouteComponent() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("replies");
+  /*
+   * The open tab lives in the URL, not in component state. setTab replaces
+   * rather than pushes for the same reason the pipeline list does: flicking
+   * between mailboxes should not bury the page you arrived from under ten
+   * history entries.
+   */
+  const { tab } = Route.useSearch();
+  const navigate = useNavigate();
+  const setTab = (next: Tab) =>
+    navigate({ to: "/communications", search: { tab: next }, replace: true });
   /** Which sent email is open in the reader. */
   const [openStep, setOpenStep] = useState<number | null>(null);
   /** Which mailbox message is open in the reader. */
@@ -873,5 +882,23 @@ function RouteComponent() {
 }
 
 export const Route = createFileRoute("/_layout/_authenticated/communications")({
+  /*
+   * ?tab= puts the open mailbox in the URL.
+   *
+   * The tab was useState, so this page always opened on Replies and there was
+   * no way to link to any other one. That is what blocked the sidebar's Email
+   * group: "Inbox" and "Sent" are the two mailboxes people actually live in,
+   * and a nav entry that lands on Replies and makes you find the right tab is
+   * not a nav entry. It also means a tab survives a reload and the browser's
+   * Back button walks the tabs, both of which people expect of a mail client.
+   *
+   * Unknown values fall back to "all" — the inbox — rather than throwing:
+   * this is a hand-editable URL and a typo should show you mail, not an error.
+   */
+  validateSearch: (raw: Record<string, unknown>): { tab: Tab } => {
+    const wanted = String(raw.tab ?? "");
+    const match = TABS.find((t) => t === wanted);
+    return { tab: match ?? "all" };
+  },
   component: RouteComponent,
 });

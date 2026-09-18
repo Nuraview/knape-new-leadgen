@@ -489,6 +489,127 @@ def _apply_tracking(html: str, token: str) -> str:
     return html + pixel
 
 
+def _plain_text_only() -> bool:
+    """Whether to send as plain text with no HTML alternative.
+
+    DEFAULT: yes. The two designed frames above — photo header, creative
+    banner, gold rule, signature card, dark footer with social icons and fine
+    print — are what a cold first-touch email should least look like. They read
+    as a newsletter, which is the category a stranger deletes without opening,
+    and every one of those elements is a deliverability cost: remote images, a
+    tracking pixel, a wrapped CTA link and a ~40:1 markup-to-copy ratio.
+
+    A one-to-one email from a person looks like a one-to-one email from a
+    person. The copy is already written that way by the messaging angles, so
+    the design was working against its own words.
+
+    A SETTING rather than a deletion, because the frames are client-approved
+    work and the decision is an operator's, not a deploy's: set
+    EMAIL_PLAIN_TEXT to "false" in the dashboard and the designed HTML comes
+    straight back with no code change. See _body_to_html.
+    """
+    off = ("false", "0", "no", "off")
+
+    try:
+        from outreach.app_settings import get_setting
+
+        v = str(get_setting("EMAIL_PLAIN_TEXT", "") or "").strip().lower()
+        # The dashboard setting wins when set at all, so an operator can flip
+        # the format without a deploy — same precedence as EMAIL_TEMPLATE_VARIANT.
+        if v:
+            return v not in off
+    except Exception:  # noqa: BLE001
+        # No settings table (a bare script, a fresh install): fall through to
+        # the environment rather than assuming either format.
+        pass
+
+    return (os.getenv("EMAIL_PLAIN_TEXT") or "").strip().lower() not in off
+
+
+def _plain_signature(from_email: str = "") -> str:
+    """The sign-off block: company, then the reply address.
+
+    The angle copy already ends with ``{signer}`` — the person's name — so this
+    adds only what a name alone does not say: which company is writing, and
+    where a reply goes. Three short lines, no title, no phone, no links, no
+    "you received this because". Anything more turns a personal note back into
+    a mailshot.
+
+    Every value is read, never hardcoded: the same brand configuration the
+    HTML signature card used. A white-labelled instance signs with its own
+    company and its own address, which is the whole point of the BRAND_* keys.
+    """
+    company = brand.name()
+    reply = from_email or brand.sender_email()
+
+    lines = [line for line in (company, reply) if line]
+    return "\n".join(lines)
+
+
+def _append_plain_signature(body: str, from_email: str) -> str:
+    """Attach the sign-off, unless the copy already carries it.
+
+    An angle whose last block is itself a signature (``_looks_like_signature``)
+    would otherwise be signed twice — and a message that names the company
+    twice in four lines reads as generated, which is exactly the impression
+    plain text is here to avoid.
+    """
+    sig = _plain_signature(from_email)
+    if not sig:
+        return body
+
+    trimmed = body.rstrip()
+    # Already ends with the company line: nothing to add.
+    if trimmed.endswith(sig):
+        return trimmed + "\n"
+
+    company = brand.name()
+    tail = trimmed.rsplit("\n\n", 1)[-1] if "\n\n" in trimmed else trimmed
+    if company and company in tail:
+        # The copy signs off with the company already; add only the address.
+        reply = from_email or brand.sender_email()
+        if reply and reply not in tail:
+            return f"{trimmed}\n{reply}\n"
+        return trimmed + "\n"
+
+    return f"{trimmed}\n\n{sig}\n"
+
+
+def _apply_plain_tracking(body: str, token: str) -> str:
+    """Rewrite the copy's one value link so clicks are still counted.
+
+    Plain text CANNOT carry an open pixel — there is no element to hide one in —
+    so dropping the HTML alternative means open tracking genuinely stops
+    working for these sends, and any open rate computed from it will read 0.
+    That is a real measurement loss, not a bug to be worked around, and it is
+    the trade for mail that looks like it came from a person.
+
+    Clicks survive, because a link in plain text is still a URL: pointing it at
+    the same /t/c redirect the HTML used keeps the one CTA counted.
+    """
+    if not token or not body:
+        return body
+
+    from urllib.parse import quote
+
+    base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if not base:
+        return body
+
+    skip = ("linkedin.com", "facebook.com", "icons8.com", "twitter.com", "instagram.com")
+
+    def _repl(m: "re.Match[str]") -> str:
+        url = m.group(0)
+        if any(d in url.lower() for d in skip):
+            return url
+        return f"{base}/t/c/{token}?u={quote(url, safe='')}"
+
+    # Deliberately conservative: a bare http(s) run, stopping before trailing
+    # punctuation so "see https://x.com/y." does not swallow the full stop into
+    # the redirect.
+    return re.sub(r"https?://[^\s<>\])]+[^\s<>\]).,;:!?]", _repl, body)
+
+
 def _build_message(
     *, to_email: str, subject: str, body: str, from_email: str, from_name: str,
     in_reply_to: str = "", references: str = "", track_token: str = "",
@@ -510,6 +631,17 @@ def _build_message(
     if in_reply_to:
         msg["In-Reply-To"] = in_reply_to
         msg["References"] = (references + " " + in_reply_to).strip()
+    if _plain_text_only():
+        # One part, text/plain. No multipart/alternative at all.
+        #
+        # Sending plain text as the *fallback* of an HTML mail is not the same
+        # thing: the client still shows the HTML, the pixel still loads, and
+        # the message still announces itself as a designed campaign. The point
+        # here is that there is nothing else in the envelope.
+        signed = _append_plain_signature(body, from_email)
+        msg.set_content(_apply_plain_tracking(signed, track_token))
+        return msg
+
     msg.set_content(body)  # text/plain fallback
     html = _body_to_html(body, from_email, from_name, angle=angle, step_index=step_index)
     html = _apply_tracking(html, track_token)
