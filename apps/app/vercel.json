@@ -3,7 +3,7 @@
   "framework": "vite",
   "outputDirectory": "dist",
   "installCommand": "cd ../.. && bun install",
-  "buildCommand": "cd ../.. && bun run build:packages && bun run --filter @nuraview/api build && cd apps/app && vite build",
+  "buildCommand": "cd ../.. && bun run build:packages && bun run --filter @nuraview/api build && cd apps/app && VITE_DEMO_DATA=true vite build",
   "functions": {
     "api/index.ts": {
       "maxDuration": 60,
