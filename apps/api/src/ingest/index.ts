@@ -30,6 +30,7 @@ import crmDb from "../database/crm";
 import { crmLeadEnrichment, crmLeadSources } from "../database/crm-schema";
 import { sendInngestEvents } from "../events/inngest-send";
 import { requireScraperAuth, requireWhatsappAuth } from "../utils/ingest-auth";
+import { extractEmailFromText, isUsableContactEmail } from "../utils/extract-email";
 import { sanitizeName } from "../utils/sanitize-name";
 
 /** node-postgres returns {rows}; drizzle's execute sometimes returns the array. */
@@ -94,9 +95,47 @@ async function getUpworkSourceId(): Promise<string | null> {
 function clean(v: string | null | undefined): string | null {
   if (v == null) return null;
   const t = v.trim();
-  if (!t || t.toLowerCase() === "not found" || t.toLowerCase() === "n/a")
+  const lower = t.toLowerCase();
+  if (!t || lower === "not found" || lower === "n/a" || lower === "null" || lower === "unknown")
     return null;
   return t;
+}
+
+/**
+ * Our own email extraction from the posting body.
+ *
+ * The scraper's `email` field is always null — Upwork does not show the
+ * client's address on the job page, so `pusher.py` hard-codes it (see its
+ * `forward_to_crm`). That left every lead dependent on the paid enrichment
+ * waterfall, which finds nothing whenever its providers are unconfigured or the
+ * lead has no usable name. Posters do routinely paste an address into the
+ * posting itself; this reads it, for free, from text we already store.
+ *
+ * Conservative on purpose — `extract-email.ts` rejects placeholders, bounce
+ * addresses, platform mailboxes and asset filenames. A reviewer's typed value is
+ * still never overwritten: the upsert below only fills an EMPTY column.
+ */
+function postingEmail(item: {
+  description?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  payload?: unknown;
+}): string | null {
+  const payload = (item.payload ?? null) as Record<string, unknown> | null;
+  const pick = (v: unknown): string | null =>
+    typeof v === "string" && v.trim() ? v : null;
+  // The pusher sends the body as `description`, and also nests the raw scrape
+  // under `payload`; older builds and other sources only filled one of them.
+  const text =
+    pick(item.description) ??
+    pick(payload?.job_description) ??
+    pick(payload?.description);
+  if (!text) return null;
+
+  return extractEmailFromText(text, {
+    firstName: item.first_name ?? null,
+    lastName: item.last_name ?? null,
+  });
 }
 
 /**
@@ -253,7 +292,11 @@ ingest.post("/upwork", requireScraperAuth, async (c) => {
       // Gemini's "return Not Found" instruction.
       const cleanFirstName = sanitizeName(item.first_name);
       const cleanLastName = sanitizeName(item.last_name);
-      const cleanEmail = clean(item.email);
+      // Scraper value first (a source that does supply a usable email wins);
+      // otherwise read the posting body. See postingEmail() above.
+      const rawScraperEmail = clean(item.email);
+      const validScraperEmail = isUsableContactEmail(rawScraperEmail) ? rawScraperEmail : null;
+      const cleanEmail = validScraperEmail ?? postingEmail(item);
       const cleanJobTitle = clean(item.job_title);
       const cleanDescription = clean(item.description);
       const hasClientInfo = scoreClientInfo(item.payload);

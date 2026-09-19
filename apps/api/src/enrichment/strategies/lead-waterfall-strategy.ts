@@ -72,6 +72,35 @@ const COST = {
 
 export type LeadWaterfallMode = "auto" | "manual" | "deep";
 
+/**
+ * The env var behind each step of the waterfall, for diagnostics only.
+ *
+ * Every provider service degrades to `null` when its key is unset — correct for
+ * runtime (one missing key must not break the pipeline) but it made the failure
+ * invisible: a run "COMPLETED" having found nothing, with nothing on the audit
+ * row explaining why. Production ran like that for months (see the note on
+ * EnrichmentSection in apps/app …/lead-detail-panel.tsx), and every lead it
+ * touched came back with no email.
+ *
+ * So the strategy now says out loud which keys are missing, and the worker
+ * stores it in crm_Lead_Enrichment.error — the drawer renders that string.
+ */
+const PROVIDER_KEYS = {
+  serper: "SERPER_API_KEY",
+  prospeo: "PROSPEO_API_KEY",
+  findymail: "FINDYMAIL_API_KEY",
+  apify: "APIFY_API_TOKEN",
+  contactout: "CONTACTOUT_API_KEY",
+  millionverifier: "MILLIONVERIFIER_API_KEY",
+} as const;
+
+/** Unset provider keys, as env var names — empty when everything is wired up. */
+export function missingProviderKeys(): string[] {
+  return Object.values(PROVIDER_KEYS).filter(
+    (name) => !process.env[name]?.trim(),
+  );
+}
+
 export interface LeadWaterfallInput {
   // Required.
   company: string;
@@ -171,6 +200,16 @@ export class LeadWaterfallStrategy {
       costUsd: 0,
       errors: [],
     };
+
+    // Say up front which providers are switched off, so an empty result is
+    // explained instead of merely reported. The run still proceeds — whatever
+    // keys ARE set still do their job.
+    const unconfigured = missingProviderKeys();
+    if (unconfigured.length > 0) {
+      result.errors.push(
+        `providers unconfigured (keys unset): ${unconfigured.join(", ")}`,
+      );
+    }
 
     // Gate: refuse to enrich on weak inputs. `deep` mode bypasses for the
     // rare "I know what I'm doing" reviewer-initiated dig.
@@ -427,11 +466,24 @@ export class LeadWaterfallStrategy {
       result.trace.millionverifier = verRes;
       result.found.emailVerified = isVerifiedDeliverable(verRes);
       if (!result.found.emailVerified) {
-        // Found-but-undeliverable: keep in trace, but DON'T write to the
-        // lead's primary email. The Inngest function inspects emailVerified
-        // before mapping into crmLeads.email.
+        /*
+         * Found-but-undeliverable: keep in trace, but DON'T write to the
+         * lead's primary email. The Inngest function inspects emailVerified
+         * before mapping into crmLeads.email.
+         *
+         * Name the reason precisely. `verifyEmailViaMillionVerifier` returns
+         * null for BOTH "no key configured" and "all retries failed", and the
+         * old message printed the same "unknown" for either — which is what
+         * made a discarded address (and by extension the empty email column)
+         * impossible to explain from the audit row.
+         */
+        const why = verRes
+          ? (verRes.result ?? "no result code")
+          : process.env.MILLIONVERIFIER_API_KEY?.trim()
+            ? "no verifier response after retries"
+            : "MILLIONVERIFIER_API_KEY unset";
         result.errors.push(
-          `verify rejected ${result.found.email}: ${verRes?.result ?? "unknown"}`,
+          `found ${result.found.email} but kept it out of the lead: ${why}`,
         );
       }
     }

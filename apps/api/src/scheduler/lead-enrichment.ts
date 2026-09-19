@@ -23,11 +23,19 @@
  *     overwritten by a scraper's guess
  *   - an email lands in the primary slot only when VERIFIED deliverable;
  *     risky and catch-all stay in the audit trace
+ *   - the whole run (found values, provider trace, applied fields, warnings) is
+ *     written to crm_Lead_Enrichment.result, and the warnings go to `.error` too,
+ *     so an empty email column always has a stated reason
+ *   - a run that could not start (INSUFFICIENT_INPUT) closes as SKIPPED, not
+ *     COMPLETED, so it neither claims work nor blocks the next retry
  */
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import crmDb from "../database/crm";
 import { crmLeadEnrichment, crmLeads } from "../database/crm-schema";
-import { LeadWaterfallStrategy } from "../enrichment/strategies/lead-waterfall-strategy";
+import {
+  LeadWaterfallStrategy,
+  type LeadWaterfallResult,
+} from "../enrichment/strategies/lead-waterfall-strategy";
 import { sanitizeName } from "../utils/sanitize-name";
 
 const NOT_A_LOCATION = new Set([
@@ -59,11 +67,23 @@ function dailyBudget(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_BUDGET_USD;
 }
 
+/**
+ * Close an audit row.
+ *
+ * `result` is the jsonb column the LEGACY Inngest worker filled with the whole
+ * trace — found values, every provider response, which fields were applied and
+ * the non-fatal errors. The ported worker dropped it, and with it the only
+ * place a reviewer could have read WHY a lead came back with no email: the
+ * drawer's message box renders `error`, and nothing else was recorded. Restored
+ * here, including the legacy habit of parking warnings in `error` — they don't
+ * change the status, but they are the explanation.
+ */
 async function finish(
   id: string,
   status: "COMPLETED" | "SKIPPED" | "FAILED",
   error: string | null,
   costUsd: number,
+  result?: object,
 ) {
   await crmDb
     .update(crmLeadEnrichment)
@@ -72,8 +92,29 @@ async function finish(
       error,
       costUsd: String(costUsd),
       updatedAt: new Date(),
+      ...(result ? { result } : {}),
     })
     .where(eq(crmLeadEnrichment.id, id));
+}
+
+/** Non-fatal warnings for the audit row — null when there are none. */
+function warningsOf(result: LeadWaterfallResult): string | null {
+  return result.errors.length > 0 ? result.errors.join("; ") : null;
+}
+
+/** The jsonb payload the legacy worker wrote, kept in the same shape. */
+function traceOf(
+  mode: string,
+  result: LeadWaterfallResult,
+  appliedFields: string[],
+) {
+  return {
+    mode,
+    found: result.found,
+    trace: result.trace,
+    appliedFields,
+    errors: result.errors,
+  } as unknown as object;
 }
 
 export async function processLeadEnrichment() {
@@ -192,6 +233,36 @@ export async function processLeadEnrichment() {
         mode as "auto" | "manual" | "deep",
       );
 
+      /*
+       * A run that could never start is NOT a finished enrichment.
+       *
+       * The strategy returns early with INSUFFICIENT_INPUT when the lead has no
+       * usable first+last name (and no email/LinkedIn to work from) — the normal
+       * case for our data, because the scraper's Gemini extraction returns
+       * "Not Found" whenever the posting does not name the buyer. Recording that
+       * as COMPLETED did two harmful things: it claimed work that never happened,
+       * and it armed the "enriched within last 7 days" guard above, so the lead
+       * was locked out of an automatic retry for a week even after a later
+       * re-scrape delivered a name. SKIPPED tells the truth and stays retryable.
+       */
+      if (result.errors.includes("INSUFFICIENT_INPUT")) {
+        await finish(
+          run.id,
+          "SKIPPED",
+          "No usable first/last name to search on — will retry once the scraper delivers one",
+          result.costUsd ?? 0,
+          traceOf(mode, result, []),
+        );
+        await crmDb
+          .update(crmLeads)
+          // enrichedAt is deliberately untouched: we did not enrich anything,
+          // and the drawer's "when was this last looked at" must not lie.
+          .set({ enrichmentStatus: "SKIPPED", updatedAt: new Date() })
+          .where(eq(crmLeads.id, run.leadId));
+        console.log(`[enrichment] ${lead.company}: skipped — insufficient input`);
+        continue;
+      }
+
       // ONLY empty fields. A reviewer's typed value outranks a scraper's guess.
       const updates: Record<string, string> = {};
       if (!lead.linkedinUrl && result.found.linkedinUrl) {
@@ -219,7 +290,15 @@ export async function processLeadEnrichment() {
         })
         .where(eq(crmLeads.id, run.leadId));
 
-      await finish(run.id, "COMPLETED", null, result.costUsd ?? 0);
+      // Warnings (unconfigured providers, a found-but-undeliverable address)
+      // belong on the audit row — that is where the drawer reads them from.
+      await finish(
+        run.id,
+        "COMPLETED",
+        warningsOf(result),
+        result.costUsd ?? 0,
+        traceOf(mode, result, Object.keys(updates)),
+      );
       console.log(
         `[enrichment] ${lead.company}: ${Object.keys(updates).join(", ") || "nothing new"}`,
       );
