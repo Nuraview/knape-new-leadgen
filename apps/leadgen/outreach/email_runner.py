@@ -171,6 +171,9 @@ def process_due(limit: int = 50, *, enforce_gap: bool = True) -> dict[str, int]:
     failed = 0
     capped = 0
     skipped_role = 0
+    # Outcomes of the pre-send verification gate (reacher_verify.send_gate).
+    excluded = 0
+    held = 0
     touched_sequences: set[int] = set()
     # Inboxes that reported their cap during THIS tick. A per-inbox cap is not a
     # reason to stop draining every other inbox, so we skip past their steps
@@ -201,6 +204,37 @@ def process_due(limit: int = 50, *, enforce_gap: bool = True) -> dict[str, int]:
                 continue
         except Exception:  # noqa: BLE001 — never let the guard stop the queue
             pass
+
+        # Verify the mailbox immediately before sending — NuraView's method.
+        #
+        # nv-crm calls verifyEmail() on every send and holds or excludes on the
+        # answer; reacher_verify.py is that function and that decision table,
+        # ported. This is the one chokepoint every outreach email passes
+        # through (first emails via start_sequence_send, follow-ups via the
+        # scheduler), so one check here covers all of them.
+        #
+        # Deliberately NOT inside the try/except-pass above. The role guard can
+        # afford to fail open; this cannot. If the verifier itself throws, the
+        # step is held — "treating our own outage as permission is how
+        # automation turns into unverified bulk mail."
+        try:
+            from outreach.reacher_verify import send_gate
+
+            action, why = send_gate(step.get("to_email") or "")
+        except Exception as e:  # noqa: BLE001
+            action, why = "hold_unverified", f"verifier error: {type(e).__name__}"
+
+        if action == "exclude":
+            # The server said no such mailbox. Same fact as a hard bounce, so
+            # the step is cancelled rather than retried every tick.
+            email_store.cancel_step(step["id"], why)
+            excluded += 1
+            continue
+        if action != "send":
+            # Held, not cancelled: the address is unproven, not proven bad. The
+            # step stays pending and is re-checked next tick (free once cached).
+            held += 1
+            continue
 
         touched_sequences.add(step["sequence_id"])
         try:
@@ -245,7 +279,9 @@ def process_due(limit: int = 50, *, enforce_gap: bool = True) -> dict[str, int]:
     for sid in touched_sequences:
         email_store.refresh_sequence_status(sid)
     return {"sent": sent, "failed": failed, "capped": capped,
-            "skipped_role": skipped_role, "cap_remaining": cap_remaining()}
+            "skipped_role": skipped_role,
+            "excluded_undeliverable": excluded, "held_unverified": held,
+            "cap_remaining": cap_remaining()}
 
 
 def start_sequence_send(sequence_id: int, inbox_id: int | None = None) -> dict[str, int]:
