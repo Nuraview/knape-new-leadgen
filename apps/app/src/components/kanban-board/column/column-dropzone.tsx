@@ -5,6 +5,7 @@ import {
 } from "@dnd-kit/sortable";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
+import { useUserPreferencesStore } from "@/store/user-preferences";
 import type { ProjectWithTasks } from "@/types/project";
 import TaskCard from "../task-card";
 
@@ -32,6 +33,7 @@ export function ColumnDropzone({
   }, [isOver, onIsOverChange]);
 
   const reduceMotion = useReducedMotion();
+  const compact = useUserPreferencesStore((state) => state.compactMode);
 
   return (
     <div ref={setNodeRef} className="flex-1 min-h-0">
@@ -39,7 +41,7 @@ export function ColumnDropzone({
         items={column.tasks}
         strategy={verticalListSortingStrategy}
       >
-        <div className="flex flex-col gap-2">
+        <div className={`flex flex-col ${compact ? "gap-1.5" : "gap-2"}`}>
           <AnimatePresence initial={false} mode="popLayout">
             {column.tasks.map((task) => (
               <motion.div

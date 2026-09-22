@@ -99,7 +99,23 @@ export const WORKSPACE_CAPABILITIES = {
   manageProjects: { project: ["create", "update", "delete"] },
   createProjects: { project: ["create"] },
   deleteProjects: { project: ["delete"] },
+  /*
+   * SPLIT, because "may edit a task" and "may destroy one" are different
+   * questions and were being answered by the same bundle.
+   *
+   * manageTasks demands create AND update AND delete, and better-auth grants a
+   * bundle only when every action in it is held. A `member` has task create,
+   * read and update — no delete — so every editing surface that asked for
+   * manageTasks read false: status, priority, title, labels, due date,
+   * relations, subtasks and the whole right-click menu. An employee whose role
+   * explicitly grants `update` could not change the status of his own task, and
+   * the board looked broken rather than restricted.
+   *
+   * manageTasks is kept for callers that genuinely mean the full set.
+   */
   manageTasks: { task: ["create", "update", "delete"] },
+  updateTasks: { task: ["update"] },
+  deleteTasks: { task: ["delete"] },
   createTasks: { task: ["create"] },
   assignTasks: { task: ["assign"] },
   manageLabels: { label: ["create", "update", "delete"] },

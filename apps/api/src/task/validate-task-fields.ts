@@ -46,6 +46,17 @@ export async function assertValidTaskStatus(
   }
 }
 
+/**
+ * Everything that is not a letter or a digit, removed.
+ *
+ * A board's column slug is derived from its name, so "To Do" is stored as
+ * "to-do" — and a person pasting a batch writes "todo", "To Do", "TO_DO" or
+ * "to do" and means the same column every time. Comparing on letters and
+ * digits alone makes all of those equal without an alias table to maintain,
+ * and it matches the column's NAME as well as its slug for free.
+ */
+const statusKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
 export function coerceStatus(
   status: string,
   validStatuses: string[],
@@ -53,9 +64,30 @@ export function coerceStatus(
   if (validStatuses.includes(status)) {
     return { status };
   }
+
+  const key = statusKey(status ?? "");
+  const match = validStatuses.find((valid) => statusKey(valid) === key);
+  if (match) {
+    return { status: match };
+  }
+
+  /*
+   * Return the status UNCHANGED, so the caller's placement rule can put the
+   * card in the board's first column.
+   *
+   * This used to answer "planned". That reads like a sensible default and is
+   * the single worst answer available: "planned" is the backlog, it is not a
+   * column, so the card was written with no column at all and appeared on no
+   * board. Two imports — 146 cards across two boards — were created, reported
+   * as successful, and were invisible to the people they were assigned to.
+   * An unknown status should land somewhere visible and say so, never in a
+   * place nobody is looking.
+   */
   return {
-    status: "planned",
-    warning: `Unknown status "${status}" mapped to "planned"`,
+    status,
+    warning:
+      `Unknown status "${status}" — put in the first column. ` +
+      `This board accepts: ${validStatuses.join(", ")}`,
   };
 }
 

@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import db from "../../database";
-import { projectMemberTable, projectTable } from "../../database/schema";
-import { getUserWorkspaceRole } from "../../utils/require-crm-access";
+import { projectTable } from "../../database/schema";
+import { visibleProjectIds } from "../../utils/require-crm-access";
 
 /**
  * Projects visible to a user.
@@ -44,13 +44,13 @@ async function getProjects(
   let where = baseWhere;
 
   if (userId) {
-    const role = await getUserWorkspaceRole(userId);
-    if (role !== "owner" && role !== "admin") {
-      const assignments = await db
-        .select({ projectId: projectMemberTable.projectId })
-        .from(projectMemberTable)
-        .where(eq(projectMemberTable.userId, userId));
+    // The rule itself lives in utils/require-crm-access.ts, beside
+    // canOpenProject, which answers the same question about one project. It was
+    // written out here as well, and a rule kept in two places is a rule that
+    // fails open in one of them.
+    const visible = await visibleProjectIds(userId);
 
+    if (visible !== "all") {
       // No assignments means no projects. inArray on an empty list is not
       // portable, so an id that cannot exist is used to force an empty result
       // rather than letting `where` fall back to baseWhere.
@@ -58,9 +58,7 @@ async function getProjects(
         baseWhere,
         inArray(
           projectTable.id,
-          assignments.length > 0
-            ? assignments.map((a) => a.projectId)
-            : ["__no_projects_assigned__"],
+          visible.length > 0 ? visible : ["__no_projects_assigned__"],
         ),
       );
     }

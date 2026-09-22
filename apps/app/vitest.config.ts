@@ -13,6 +13,14 @@ export default defineConfig({
     },
   },
   resolve: {
+    // Mirrors vite.config.ts: a duplicated prosemirror-model breaks every
+    // cross-copy Fragment/Node call, which is exactly what mention insertion hits.
+    dedupe: [
+      "prosemirror-model",
+      "prosemirror-transform",
+      "prosemirror-view",
+      "prosemirror-state",
+    ],
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@i18n": path.resolve(__dirname, "../../i18n"),

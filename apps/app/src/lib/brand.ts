@@ -47,6 +47,8 @@ export type Brand = {
   legalName: string;
   legacyBaseUrl: string | null;
   showProjectManagement: boolean;
+  /** The work clock and Today's Activity. Vendor-only; see api/utils/get-brand.ts. */
+  showWorkClock: boolean;
   signature: BrandSignature;
 };
 
@@ -68,6 +70,7 @@ export const FALLBACK_BRAND: Brand = {
   legalName: "Varshith KM LLC",
   legacyBaseUrl: "https://crmx1.nuraview.com",
   showProjectManagement: true,
+  showWorkClock: true,
   signature: {
     personName: "VARSHITH KM",
     personTitle: "CEO & Founder, Nuraview",

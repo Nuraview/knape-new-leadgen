@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CalendarX,
   GitMerge,
+  FolderKanban,
   GitPullRequest,
   MessageSquare,
   Paperclip,
@@ -33,6 +34,8 @@ import { useDeleteTask } from "@/hooks/mutations/task/use-delete-task";
 import useExternalLinks from "@/hooks/queries/external-link/use-external-links";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
+import { resolveLabelColor } from "@/lib/label-color";
+import { isDoneStatus } from "@/lib/task-done";
 import { dueDateStatusColors, getDueDateStatus } from "@/lib/due-date-status";
 import { getInitials } from "@/lib/get-initials";
 import { getPriorityIcon } from "@/lib/priority";
@@ -44,8 +47,10 @@ import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
 import { Button } from "../ui/button";
 import { ContextMenu, ContextMenuTrigger } from "../ui/context-menu";
+import CardSubtasks from "./card-subtasks";
 import TaskCardContextMenuContent from "./task-card-context-menu/task-card-context-menu-content";
 import TaskCardLabels from "./task-labels";
+import DoneToggle from "@/components/task/done-toggle";
 import TaskLinkPopover from "@/components/task/task-link-popover";
 
 type TaskCardProps = {
@@ -73,6 +78,7 @@ function TaskCard({ task, disableDragDrop = false }: TaskCardProps) {
     showDueDates,
     showLabels,
     showTaskNumbers,
+    compactMode: compact,
   } = useUserPreferencesStore();
   const [isDeleteTaskModalOpen, setIsDeleteTaskModalOpen] = useState(false);
   const { data: externalLinks } = useExternalLinks(task.id);
@@ -81,6 +87,7 @@ function TaskCard({ task, disableDragDrop = false }: TaskCardProps) {
   const isTaskFocused = isFocused(task.id);
 
   const hasDescription = Boolean(task.description?.trim());
+  const isTaskDone = isDoneStatus(task.status, project?.columns);
 
   const pullRequests = useMemo(() => {
     if (!externalLinks) return [];
@@ -187,7 +194,9 @@ function TaskCard({ task, disableDragDrop = false }: TaskCardProps) {
           {/** biome-ignore lint/a11y/noStaticElementInteractions: false positive for onClick and onKeyDown */}
           <div
             onClick={handleTaskCardClick}
-            className={`group relative rounded-lg border bg-background p-3 shadow-xs/5 transition-[background-color,border-color,box-shadow,scale] duration-150 ease-out active:scale-[0.98] ${
+            className={`group relative rounded-lg border bg-background ${
+              compact ? "p-2" : "p-2.5"
+            } shadow-xs/5 transition-[background-color,border-color,box-shadow,scale] duration-150 ease-out active:scale-[0.98] ${
               disableDragDrop ? "cursor-default" : "cursor-move"
             } ${
               isDragging
@@ -218,38 +227,35 @@ function TaskCard({ task, disableDragDrop = false }: TaskCardProps) {
               present for keyboard and touch (focus-within / always-on below sm).
             */}
             <div
-              data-hover-reveal
-              className="absolute top-2 right-9 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100"
+              className={`absolute opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100 ${
+                compact ? "top-1 right-7" : "top-1.5 right-8"
+              }`}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             >
               <TaskLinkPopover taskId={task.id} />
             </div>
 
-            {showTaskNumbers && (
-              <div className="mb-2 text-[10px] font-mono text-muted-foreground/90">
-                {project?.slug}-{task.number}
-              </div>
-            )}
-
             {showAssignees && (
-              <div className="absolute top-3 right-3">
+              <div className={compact ? "absolute top-1.5 right-2" : "absolute top-2 right-2"}>
                 {task.userId ? (
-                  <Avatar className="h-5 w-5">
+                  <Avatar className={compact ? "h-4 w-4" : "h-5 w-5"}>
                     <AvatarImage
                       src={assignee?.user?.image ?? ""}
                       alt={assignee?.user?.name || ""}
                     />
-                    <AvatarFallback className="text-xs font-medium border border-border/30">
+                    <AvatarFallback className="text-[10px] font-medium border border-border/30">
                       {getInitials(assignee?.user?.name)}
                     </AvatarFallback>
                   </Avatar>
                 ) : (
                   <div
-                    className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-muted"
+                    className={`flex items-center justify-center rounded-full border border-border bg-muted ${
+                      compact ? "h-4 w-4" : "h-5 w-5"
+                    }`}
                     title={t("tasks:assignee.unassigned")}
                   >
-                    <span className="text-[10px] font-medium text-muted-foreground">
+                    <span className="text-[9px] font-medium text-muted-foreground">
                       ?
                     </span>
                   </div>
@@ -257,91 +263,143 @@ function TaskCard({ task, disableDragDrop = false }: TaskCardProps) {
               </div>
             )}
 
-            <div className="mb-2.5 pr-6">
+            {/*
+              Tick, key and title on ONE line.
+
+              This card used to stack five rows — number, title, labels, work
+              stream, badges, then priority and date — so eight cards filled a
+              1080px column and a board of forty was mostly scrolling ("the
+              entire Kanban board is taking too much space", VK). Nothing is
+              gone: the key moved inline ahead of the title, and everything that
+              was a row of its own is now a chip on the one meta line below.
+            */}
+            <div className="flex items-start gap-1.5 pr-6">
+              <DoneToggle
+                taskId={task.id}
+                projectId={task.projectId}
+                status={task.status}
+                columns={project?.columns}
+                size={compact ? "sm" : "md"}
+                className="mt-px shrink-0"
+              />
               <div
-                className="overflow-hidden break-words text-sm leading-5 font-medium text-foreground/95"
+                className={`min-w-0 overflow-hidden break-words font-medium ${
+                  compact ? "text-[13px] leading-4" : "text-sm leading-5"
+                } ${
+                  isTaskDone
+                    ? "text-muted-foreground line-through"
+                    : "text-foreground/95"
+                }`}
                 style={{
                   display: "-webkit-box",
-                  WebkitLineClamp: 3,
+                  WebkitLineClamp: compact ? 2 : 3,
                   WebkitBoxOrient: "vertical",
                   wordBreak: "break-word",
                   hyphens: "auto",
                 }}
               >
+                {showTaskNumbers && (
+                  <span className="mr-1.5 font-mono text-[10px] text-muted-foreground/80">
+                    {project?.slug}-{task.number}
+                  </span>
+                )}
                 {task.title}
               </div>
             </div>
 
-            {showLabels && (
-              <div className="mb-2.5">
-                <TaskCardLabels taskId={task.id} />
-              </div>
-            )}
-
             {/*
-              Trello's card-front badges. Without them every imported card
-              looks identical — a title and nothing else — so there is no way
-              to tell which ones carry a brief, a file, or a discussion. The
-              description badge is intentionally an icon with no count: the
-              question is "is there a body?", not "how long is it".
-            */}
-            {(hasDescription ||
-              (task.commentCount ?? 0) > 0 ||
-              (task.attachmentCount ?? 0) > 0) && (
-              <div className="mb-2 flex items-center gap-2.5 text-[11px] text-muted-foreground">
-                {hasDescription && (
-                  <span title={t("tasks:badges.hasDescription")}>
-                    <AlignLeft className="h-3.5 w-3.5" />
-                  </span>
-                )}
-                {(task.commentCount ?? 0) > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1"
-                    title={t("tasks:badges.comments", {
-                      count: task.commentCount ?? 0,
-                    })}
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    {task.commentCount}
-                  </span>
-                )}
-                {(task.attachmentCount ?? 0) > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1"
-                    title={t("tasks:badges.attachments", {
-                      count: task.attachmentCount ?? 0,
-                    })}
-                  >
-                    <Paperclip className="h-3.5 w-3.5" />
-                    {task.attachmentCount}
-                  </span>
-                )}
-              </div>
-            )}
+              One meta line, wrapped.
 
-            <div className="flex items-center gap-1.5">
+              Priority, date, stream, labels and the badges all read as "what
+              else is true about this card", so they belong on the same line and
+              only take a second one when there is genuinely too much. The
+              subtask list opens full width underneath (it sets w-full, which in
+              a wrapping flex row is its own line).
+            */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground empty:hidden">
               {showPriority && (
-                <span className="inline-flex items-center gap-1 rounded border border-border/70 bg-muted/55 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                <span className="inline-flex items-center [&>svg]:h-3.5 [&>svg]:w-3.5">
                   {getPriorityIcon(task.priority ?? "")}
                 </span>
               )}
 
               {showDueDates && task.dueDate && (
-                <div
-                  className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded ${dueDateStatusColors[getDueDateStatus(task.dueDate)]}`}
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${dueDateStatusColors[getDueDateStatus(task.dueDate)]}`}
                 >
                   {getDueDateStatus(task.dueDate) === "overdue" && (
-                    <CalendarX className="w-3 h-3" />
+                    <CalendarX className="h-3 w-3" />
                   )}
                   {getDueDateStatus(task.dueDate) === "due-soon" && (
-                    <CalendarClock className="w-3 h-3" />
+                    <CalendarClock className="h-3 w-3" />
                   )}
                   {(getDueDateStatus(task.dueDate) === "far-future" ||
                     getDueDateStatus(task.dueDate) === "no-due-date") && (
-                    <Calendar className="w-3 h-3" />
+                    <Calendar className="h-3 w-3" />
                   )}
-                  <span>{format(new Date(task.dueDate), "MMM d")}</span>
-                </div>
+                  {format(new Date(task.dueDate), "MMM d")}
+                </span>
+              )}
+
+              {/*
+                Work stream. A filled tint rather than an outlined chip, because
+                it answers a different question from a label: not "what is this
+                tagged" but "which piece of work does this belong to". Boards
+                here are per-person, so without it a board is a stack of
+                unrelated cards.
+              */}
+              {task.taskProject && (
+                <span
+                  className="inline-flex max-w-[9rem] items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{
+                    color: resolveLabelColor(task.taskProject.color),
+                    backgroundColor: `color-mix(in srgb, ${resolveLabelColor(task.taskProject.color)} 14%, transparent)`,
+                  }}
+                  title={task.taskProject.name}
+                >
+                  <FolderKanban className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{task.taskProject.name}</span>
+                </span>
+              )}
+
+
+              {showLabels && <TaskCardLabels taskId={task.id} dense={compact} />}
+
+              {/*
+                Trello's card-front badges. Without them every imported card
+                looks identical — a title and nothing else — so there is no way
+                to tell which ones carry a brief, a file, or a discussion. The
+                description badge is intentionally an icon with no count: the
+                question is "is there a body?", not "how long is it".
+              */}
+              <CardSubtasks task={task} columns={project?.columns} />
+
+              {hasDescription && (
+                <span title={t("tasks:badges.hasDescription")}>
+                  <AlignLeft className="h-3.5 w-3.5" />
+                </span>
+              )}
+              {(task.commentCount ?? 0) > 0 && (
+                <span
+                  className="inline-flex items-center gap-1"
+                  title={t("tasks:badges.comments", {
+                    count: task.commentCount ?? 0,
+                  })}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  {task.commentCount}
+                </span>
+              )}
+              {(task.attachmentCount ?? 0) > 0 && (
+                <span
+                  className="inline-flex items-center gap-1"
+                  title={t("tasks:badges.attachments", {
+                    count: task.attachmentCount ?? 0,
+                  })}
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                  {task.attachmentCount}
+                </span>
               )}
 
               {pullRequests.length === 1 && (

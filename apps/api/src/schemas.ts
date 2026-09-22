@@ -282,6 +282,7 @@ export const brandSchema = v.object({
   legalName: v.string(),
   legacyBaseUrl: v.nullable(v.string()),
   showProjectManagement: v.boolean(),
+  showWorkClock: v.boolean(),
   signature: v.object({
     personName: v.string(),
     personTitle: v.string(),
@@ -316,5 +317,4 @@ export const configSchema = v.object({
   realtimeTransport: v.picklist(["websocket", "poll"]),
   hasLeadgen: v.boolean(),
   hasDialer: v.boolean(),
-  sharedProjectId: v.nullable(v.string()),
 });

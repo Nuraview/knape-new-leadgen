@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useUserPreferencesStore } from "@/store/user-preferences";
 import type { ProjectWithTasks } from "@/types/project";
 import { ColumnDropzone } from "./column-dropzone";
 import { ColumnHeader } from "./column-header";
@@ -10,6 +11,7 @@ type ColumnProps = {
 
 function Column({ column, disableDragDrop = false }: ColumnProps) {
   const [isDropzoneOver, setIsDropzoneOver] = useState(false);
+  const compact = useUserPreferencesStore((state) => state.compactMode);
 
   return (
     <div
@@ -19,10 +21,18 @@ function Column({ column, disableDragDrop = false }: ColumnProps) {
           : "border-border/70 bg-muted/40 shadow-xs/5 hover:border-border/90 dark:bg-card/90"
       }`}
     >
-      <div className="shrink-0 border-b border-border/60 px-3 py-2">
+      <div
+        className={`shrink-0 border-b border-border/60 ${
+          compact ? "px-2 py-1" : "px-2.5 py-1.5"
+        }`}
+      >
         <ColumnHeader column={column} />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 [-webkit-overflow-scrolling:touch]">
+      <div
+        className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] ${
+          compact ? "px-1.5 py-1" : "px-2 py-1.5"
+        }`}
+      >
         <ColumnDropzone
           column={column}
           disableDragDrop={disableDragDrop}

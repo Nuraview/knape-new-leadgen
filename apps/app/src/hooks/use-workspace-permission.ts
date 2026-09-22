@@ -100,6 +100,13 @@ export function useWorkspacePermission() {
       canCreateProjects: () => can.createProjects,
       canDeleteProjects: () => can.deleteProjects,
       canManageTasks: () => can.manageTasks,
+      /*
+       * Editing a task, and destroying one, are separate questions. Every
+       * editing surface asked canManageTasks — which requires delete — so a
+       * member with `update` was locked out of all of them.
+       */
+      canUpdateTasks: () => can.updateTasks,
+      canDeleteTasks: () => can.deleteTasks,
       canCreateTasks: () => can.createTasks,
       canAssignTasks: () => can.assignTasks,
       canManageLabels: () => can.manageLabels,

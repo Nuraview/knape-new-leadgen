@@ -27,7 +27,6 @@ import { Route as McpAuthorizeRouteImport } from './routes/mcp.authorize'
 import { Route as PostTokenRouteImport } from './routes/post.$token'
 import { Route as LayoutAuthenticatedActivityRouteImport } from './routes/_layout/_authenticated/activity'
 import { Route as LayoutAuthenticatedAdministrationRouteImport } from './routes/_layout/_authenticated/administration'
-import { Route as LayoutAuthenticatedBoardRouteImport } from './routes/_layout/_authenticated/board'
 import { Route as LayoutAuthenticatedCommunicationsRouteImport } from './routes/_layout/_authenticated/communications'
 import { Route as LayoutAuthenticatedDashboardRouteImport } from './routes/_layout/_authenticated/dashboard'
 import { Route as LayoutAuthenticatedDialerRouteImport } from './routes/_layout/_authenticated/dialer'
@@ -46,7 +45,6 @@ import { Route as LayoutAuthenticatedOrdersRouteImport } from './routes/_layout/
 import { Route as LayoutAuthenticatedPipelineRouteImport } from './routes/_layout/_authenticated/pipeline'
 import { Route as LayoutAuthenticatedPipelineSettingsRouteImport } from './routes/_layout/_authenticated/pipeline-settings'
 import { Route as LayoutAuthenticatedProfileSetupRouteImport } from './routes/_layout/_authenticated/profile-setup'
-import { Route as LayoutAuthenticatedProjectsRouteImport } from './routes/_layout/_authenticated/projects'
 import { Route as LayoutAuthenticatedProposalsRouteImport } from './routes/_layout/_authenticated/proposals'
 import { Route as LayoutAuthenticatedSchedulerRouteImport } from './routes/_layout/_authenticated/scheduler'
 import { Route as InvitationAcceptInviteIdRouteImport } from './routes/invitation/accept.$inviteId'
@@ -175,12 +173,6 @@ const LayoutAuthenticatedAdministrationRoute =
     path: '/administration',
     getParentRoute: () => LayoutAuthenticatedRoute,
   } as any)
-const LayoutAuthenticatedBoardRoute =
-  LayoutAuthenticatedBoardRouteImport.update({
-    id: '/board',
-    path: '/board',
-    getParentRoute: () => LayoutAuthenticatedRoute,
-  } as any)
 const LayoutAuthenticatedCommunicationsRoute =
   LayoutAuthenticatedCommunicationsRouteImport.update({
     id: '/communications',
@@ -286,12 +278,6 @@ const LayoutAuthenticatedProfileSetupRoute =
   LayoutAuthenticatedProfileSetupRouteImport.update({
     id: '/profile-setup',
     path: '/profile-setup',
-    getParentRoute: () => LayoutAuthenticatedRoute,
-  } as any)
-const LayoutAuthenticatedProjectsRoute =
-  LayoutAuthenticatedProjectsRouteImport.update({
-    id: '/projects',
-    path: '/projects',
     getParentRoute: () => LayoutAuthenticatedRoute,
   } as any)
 const LayoutAuthenticatedProposalsRoute =
@@ -554,7 +540,6 @@ export interface FileRoutesByFullPath {
   '/device/': typeof DeviceIndexRoute
   '/activity': typeof LayoutAuthenticatedActivityRoute
   '/administration': typeof LayoutAuthenticatedAdministrationRoute
-  '/board': typeof LayoutAuthenticatedBoardRoute
   '/communications': typeof LayoutAuthenticatedCommunicationsRoute
   '/dashboard': typeof LayoutAuthenticatedDashboardRouteWithChildren
   '/dialer': typeof LayoutAuthenticatedDialerRoute
@@ -573,7 +558,6 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof LayoutAuthenticatedPipelineRoute
   '/pipeline-settings': typeof LayoutAuthenticatedPipelineSettingsRoute
   '/profile-setup': typeof LayoutAuthenticatedProfileSetupRoute
-  '/projects': typeof LayoutAuthenticatedProjectsRoute
   '/proposals': typeof LayoutAuthenticatedProposalsRoute
   '/scheduler': typeof LayoutAuthenticatedSchedulerRoute
   '/invitation/accept/$inviteId': typeof InvitationAcceptInviteIdRoute
@@ -628,7 +612,6 @@ export interface FileRoutesByTo {
   '/device': typeof DeviceIndexRoute
   '/activity': typeof LayoutAuthenticatedActivityRoute
   '/administration': typeof LayoutAuthenticatedAdministrationRoute
-  '/board': typeof LayoutAuthenticatedBoardRoute
   '/communications': typeof LayoutAuthenticatedCommunicationsRoute
   '/dialer': typeof LayoutAuthenticatedDialerRoute
   '/emails': typeof LayoutAuthenticatedEmailsRoute
@@ -646,7 +629,6 @@ export interface FileRoutesByTo {
   '/pipeline': typeof LayoutAuthenticatedPipelineRoute
   '/pipeline-settings': typeof LayoutAuthenticatedPipelineSettingsRoute
   '/profile-setup': typeof LayoutAuthenticatedProfileSetupRoute
-  '/projects': typeof LayoutAuthenticatedProjectsRoute
   '/proposals': typeof LayoutAuthenticatedProposalsRoute
   '/scheduler': typeof LayoutAuthenticatedSchedulerRoute
   '/invitation/accept/$inviteId': typeof InvitationAcceptInviteIdRoute
@@ -704,7 +686,6 @@ export interface FileRoutesById {
   '/device/': typeof DeviceIndexRoute
   '/_layout/_authenticated/activity': typeof LayoutAuthenticatedActivityRoute
   '/_layout/_authenticated/administration': typeof LayoutAuthenticatedAdministrationRoute
-  '/_layout/_authenticated/board': typeof LayoutAuthenticatedBoardRoute
   '/_layout/_authenticated/communications': typeof LayoutAuthenticatedCommunicationsRoute
   '/_layout/_authenticated/dashboard': typeof LayoutAuthenticatedDashboardRouteWithChildren
   '/_layout/_authenticated/dialer': typeof LayoutAuthenticatedDialerRoute
@@ -723,7 +704,6 @@ export interface FileRoutesById {
   '/_layout/_authenticated/pipeline': typeof LayoutAuthenticatedPipelineRoute
   '/_layout/_authenticated/pipeline-settings': typeof LayoutAuthenticatedPipelineSettingsRoute
   '/_layout/_authenticated/profile-setup': typeof LayoutAuthenticatedProfileSetupRoute
-  '/_layout/_authenticated/projects': typeof LayoutAuthenticatedProjectsRoute
   '/_layout/_authenticated/proposals': typeof LayoutAuthenticatedProposalsRoute
   '/_layout/_authenticated/scheduler': typeof LayoutAuthenticatedSchedulerRoute
   '/invitation/accept/$inviteId': typeof InvitationAcceptInviteIdRoute
@@ -781,7 +761,6 @@ export interface FileRouteTypes {
     | '/device/'
     | '/activity'
     | '/administration'
-    | '/board'
     | '/communications'
     | '/dashboard'
     | '/dialer'
@@ -800,7 +779,6 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/pipeline-settings'
     | '/profile-setup'
-    | '/projects'
     | '/proposals'
     | '/scheduler'
     | '/invitation/accept/$inviteId'
@@ -855,7 +833,6 @@ export interface FileRouteTypes {
     | '/device'
     | '/activity'
     | '/administration'
-    | '/board'
     | '/communications'
     | '/dialer'
     | '/emails'
@@ -873,7 +850,6 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/pipeline-settings'
     | '/profile-setup'
-    | '/projects'
     | '/proposals'
     | '/scheduler'
     | '/invitation/accept/$inviteId'
@@ -930,7 +906,6 @@ export interface FileRouteTypes {
     | '/device/'
     | '/_layout/_authenticated/activity'
     | '/_layout/_authenticated/administration'
-    | '/_layout/_authenticated/board'
     | '/_layout/_authenticated/communications'
     | '/_layout/_authenticated/dashboard'
     | '/_layout/_authenticated/dialer'
@@ -949,7 +924,6 @@ export interface FileRouteTypes {
     | '/_layout/_authenticated/pipeline'
     | '/_layout/_authenticated/pipeline-settings'
     | '/_layout/_authenticated/profile-setup'
-    | '/_layout/_authenticated/projects'
     | '/_layout/_authenticated/proposals'
     | '/_layout/_authenticated/scheduler'
     | '/invitation/accept/$inviteId'
@@ -1132,13 +1106,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAuthenticatedAdministrationRouteImport
       parentRoute: typeof LayoutAuthenticatedRoute
     }
-    '/_layout/_authenticated/board': {
-      id: '/_layout/_authenticated/board'
-      path: '/board'
-      fullPath: '/board'
-      preLoaderRoute: typeof LayoutAuthenticatedBoardRouteImport
-      parentRoute: typeof LayoutAuthenticatedRoute
-    }
     '/_layout/_authenticated/communications': {
       id: '/_layout/_authenticated/communications'
       path: '/communications'
@@ -1263,13 +1230,6 @@ declare module '@tanstack/react-router' {
       path: '/profile-setup'
       fullPath: '/profile-setup'
       preLoaderRoute: typeof LayoutAuthenticatedProfileSetupRouteImport
-      parentRoute: typeof LayoutAuthenticatedRoute
-    }
-    '/_layout/_authenticated/projects': {
-      id: '/_layout/_authenticated/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof LayoutAuthenticatedProjectsRouteImport
       parentRoute: typeof LayoutAuthenticatedRoute
     }
     '/_layout/_authenticated/proposals': {
@@ -1690,7 +1650,6 @@ const LayoutAuthenticatedDashboardRouteWithChildren =
 interface LayoutAuthenticatedRouteChildren {
   LayoutAuthenticatedActivityRoute: typeof LayoutAuthenticatedActivityRoute
   LayoutAuthenticatedAdministrationRoute: typeof LayoutAuthenticatedAdministrationRoute
-  LayoutAuthenticatedBoardRoute: typeof LayoutAuthenticatedBoardRoute
   LayoutAuthenticatedCommunicationsRoute: typeof LayoutAuthenticatedCommunicationsRoute
   LayoutAuthenticatedDashboardRoute: typeof LayoutAuthenticatedDashboardRouteWithChildren
   LayoutAuthenticatedDialerRoute: typeof LayoutAuthenticatedDialerRoute
@@ -1709,7 +1668,6 @@ interface LayoutAuthenticatedRouteChildren {
   LayoutAuthenticatedPipelineRoute: typeof LayoutAuthenticatedPipelineRoute
   LayoutAuthenticatedPipelineSettingsRoute: typeof LayoutAuthenticatedPipelineSettingsRoute
   LayoutAuthenticatedProfileSetupRoute: typeof LayoutAuthenticatedProfileSetupRoute
-  LayoutAuthenticatedProjectsRoute: typeof LayoutAuthenticatedProjectsRoute
   LayoutAuthenticatedProposalsRoute: typeof LayoutAuthenticatedProposalsRoute
   LayoutAuthenticatedSchedulerRoute: typeof LayoutAuthenticatedSchedulerRoute
   LayoutAuthenticatedLeadsKanbanRoute: typeof LayoutAuthenticatedLeadsKanbanRoute
@@ -1722,7 +1680,6 @@ const LayoutAuthenticatedRouteChildren: LayoutAuthenticatedRouteChildren = {
   LayoutAuthenticatedActivityRoute: LayoutAuthenticatedActivityRoute,
   LayoutAuthenticatedAdministrationRoute:
     LayoutAuthenticatedAdministrationRoute,
-  LayoutAuthenticatedBoardRoute: LayoutAuthenticatedBoardRoute,
   LayoutAuthenticatedCommunicationsRoute:
     LayoutAuthenticatedCommunicationsRoute,
   LayoutAuthenticatedDashboardRoute:
@@ -1744,7 +1701,6 @@ const LayoutAuthenticatedRouteChildren: LayoutAuthenticatedRouteChildren = {
   LayoutAuthenticatedPipelineSettingsRoute:
     LayoutAuthenticatedPipelineSettingsRoute,
   LayoutAuthenticatedProfileSetupRoute: LayoutAuthenticatedProfileSetupRoute,
-  LayoutAuthenticatedProjectsRoute: LayoutAuthenticatedProjectsRoute,
   LayoutAuthenticatedProposalsRoute: LayoutAuthenticatedProposalsRoute,
   LayoutAuthenticatedSchedulerRoute: LayoutAuthenticatedSchedulerRoute,
   LayoutAuthenticatedLeadsKanbanRoute: LayoutAuthenticatedLeadsKanbanRoute,

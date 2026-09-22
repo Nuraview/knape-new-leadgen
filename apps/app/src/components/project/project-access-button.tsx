@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/popover";
 import { getApiUrl } from "@/fetchers/get-api-url";
 import { useMyAccess } from "@/hooks/queries/use-my-access";
-import useGetConfig from "@/hooks/queries/config/use-get-config";
 import { getInitials } from "@/lib/get-initials";
 import { toast } from "@/lib/toast";
 
@@ -41,19 +40,13 @@ type Person = {
 
 export function ProjectAccessButton({ projectId }: { projectId: string }) {
   const { data: access } = useMyAccess();
-  const { data: config } = useGetConfig();
   /*
-   * Access to a SHARED project is managed on the deployment that owns it.
-   *
-   * Being an owner here says nothing about the other side: the service account
-   * this instance connects with is a plain member there, so listing or changing
-   * that project's members is refused — correctly. Offering the panel anyway
-   * meant a 403 on every board render for a control that could never work.
+   * Every project on this instance is this instance's own now — the shared
+   * board that used to be proxied from crmx1 is gone, and with it the case
+   * where an owner here was only a member on the deployment that actually
+   * owned the project. So the panel is offered on exactly the admin test.
    */
-  const isShared =
-    Boolean(config?.sharedProjectId) && config?.sharedProjectId === projectId;
-  const isAdmin =
-    !isShared && (access?.role === "owner" || access?.role === "admin");
+  const isAdmin = access?.role === "owner" || access?.role === "admin";
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const key = ["project", projectId, "members"];

@@ -351,6 +351,13 @@
       "when": 1784374651890,
       "tag": "0049_drop_project_is_public",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1784374652890,
+      "tag": "0050_task_project",
+      "breakpoints": true
     }
   ]
 }

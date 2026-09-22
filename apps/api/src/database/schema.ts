@@ -296,6 +296,56 @@ export const projectTable = pgTable(
   ],
 );
 
+/**
+ * The work stream a card belongs to — "Win the Day Planner", "Nuraview CRM",
+ * "Internal / Email Infrastructure".
+ *
+ * NOT the same thing as `project` above, despite the name the team uses for
+ * both. `project` is a BOARD, and boards here are per-person ("Afham's Tasks",
+ * "Muadh's Tasks"). The stream cuts the other way: one person's board carries
+ * cards for five different streams, and one stream runs across several
+ * people's boards. Asking "what is left on Win the Day Planner" was
+ * unanswerable because the only grouping was the board.
+ *
+ * Workspace-scoped rather than board-scoped, for exactly that reason — a
+ * stream that could not span boards would be a second name for the board.
+ *
+ * A label could almost do this (and did, as a stopgap, for the September
+ * import), but labels are free text per card: two cards drift to "Nuraview
+ * CRM" and "NuraView CRM" and no longer group. A row with a unique name is
+ * pickable, renameable in one place, and safe to filter on.
+ */
+export const taskProjectTable = pgTable(
+  "task_project",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("gray"),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("task_project_workspace_id_idx").on(table.workspaceId),
+    uniqueIndex("task_project_workspace_name_unique").on(
+      table.workspaceId,
+      table.name,
+    ),
+  ],
+);
+
+export const task_project = taskProjectTable;
+
 export const columnTable = pgTable(
   "column",
   {
@@ -384,6 +434,15 @@ export const taskTable = pgTable(
       onUpdate: "cascade",
     }),
     priority: text("priority").default("low"),
+    /*
+     * The work STREAM this card belongs to — not the board it sits on, which is
+     * projectId above. Two different things wearing the same word; see
+     * taskProjectTable.
+     */
+    taskProjectId: text("task_project_id").references(() => taskProjectTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
     startDate: timestamp("start_date", { mode: "date" }),
     dueDate: timestamp("due_date", { mode: "date" }),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),

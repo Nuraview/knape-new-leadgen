@@ -81,7 +81,8 @@ function RouteComponent() {
   const navigate = useNavigate();
   const { data } = useGetTasks(projectId);
   const { project, setProject } = useProjectStore();
-  const { viewMode, setViewMode } = useUserPreferencesStore();
+  const { viewMode, setViewMode, showSubtaskCards, toggleSubtaskCards } =
+    useUserPreferencesStore();
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [boardSearchQuery, setBoardSearchQuery] = useState("");
   const [isBoardSearchMounted, setIsBoardSearchMounted] = useState(false);
@@ -165,16 +166,49 @@ function RouteComponent() {
     clearFilters,
   } = useTaskFiltersWithLabelsSupport(project, projectId, boardSearchQuery);
 
-  const sortedProject = useMemo(() => {
-    if (!filteredProject || sort.field === "position") return filteredProject;
+  /*
+   * Subtasks are not cards.
+   *
+   * They are real tasks — that is what makes them assignable and openable —
+   * and the board used to draw every one of them beside its parent, so a paste
+   * of twelve cards with three subtasks each produced forty-eight ("its adding
+   * as separate tasks when bulk import", VK). Hidden here rather than dropped
+   * from the response: the checklist on the parent card is built from the same
+   * rows, and anyone who works subtasks as cards can turn them back on.
+   *
+   * parentTaskId is only set when the parent is on THIS board, so a subtask
+   * handed to somebody else stays visible on theirs.
+   */
+  const boardProject = useMemo(() => {
+    if (!filteredProject || showSubtaskCards) return filteredProject;
     return {
       ...filteredProject,
       columns: filteredProject.columns.map((column) => ({
         ...column,
+        tasks: column.tasks.filter((task) => !task.parentTaskId),
+      })),
+    };
+  }, [filteredProject, showSubtaskCards]);
+
+  const hiddenSubtaskCount = useMemo(() => {
+    if (!filteredProject || showSubtaskCards) return 0;
+    return filteredProject.columns.reduce(
+      (count, column) =>
+        count + column.tasks.filter((task) => task.parentTaskId).length,
+      0,
+    );
+  }, [filteredProject, showSubtaskCards]);
+
+  const sortedProject = useMemo(() => {
+    if (!boardProject || sort.field === "position") return boardProject;
+    return {
+      ...boardProject,
+      columns: boardProject.columns.map((column) => ({
+        ...column,
         tasks: sortTasks(column.tasks, sort),
       })),
     };
-  }, [filteredProject, sort]);
+  }, [boardProject, sort]);
 
   const boardHeaderSearch = isBoardSearchMounted ? (
     <div
@@ -230,6 +264,9 @@ function RouteComponent() {
           setViewMode={setViewMode}
           sort={sort}
           onSortChange={setSort}
+          showSubtaskCards={showSubtaskCards}
+          onToggleSubtaskCards={toggleSubtaskCards}
+          hiddenSubtaskCount={hiddenSubtaskCount}
         />
 
         <div className="flex h-full flex-1 overflow-hidden bg-background">

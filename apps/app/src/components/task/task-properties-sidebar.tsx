@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CalendarX,
   Copy,
+  FolderKanban,
   GitBranch,
   Plus,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import useGetProjects from "@/hooks/queries/project/use-get-projects";
 import useGetTask from "@/hooks/queries/task/use-get-task";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
 import { cn } from "@/lib/cn";
+import { resolveLabelColor } from "@/lib/label-color";
 import { getColumnIcon } from "@/lib/column";
 import { dueDateStatusColors, getDueDateStatus } from "@/lib/due-date-status";
 import { formatDateShort } from "@/lib/format";
@@ -41,6 +43,7 @@ import TaskLabelsPopover from "./task-labels-popover";
 import TaskMovePopover from "./task-move-popover";
 import TaskLinkPopover from "./task-link-popover";
 import TaskPriorityPopover from "./task-priority-popover";
+import TaskProjectPopover from "./task-project-popover";
 import TaskStartDatePopover from "./task-start-date-popover";
 import TaskStatusPopover from "./task-status-popover";
 
@@ -227,6 +230,33 @@ export default function TaskPropertiesSidebar({
                     </span>
                   </Button>
                 </TaskPriorityPopover>
+              )}
+              {/*
+                Work stream. Sits beside priority because it is the same kind
+                of fact about the card — which piece of work this is part of —
+                and boards here are per-person, so the board itself does not
+                answer it.
+              */}
+              {task && (
+                <TaskProjectPopover task={task} workspaceId={workspaceId}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start h-7 px-1.5 gap-1.5"
+                  >
+                    <FolderKanban
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={
+                        task.taskProject
+                          ? { color: resolveLabelColor(task.taskProject.color) }
+                          : undefined
+                      }
+                    />
+                    <span className="text-xs font-semibold truncate">
+                      {task.taskProject?.name ?? "No project"}
+                    </span>
+                  </Button>
+                </TaskProjectPopover>
               )}
               {task && (
                 <TaskAssigneePopover task={task} workspaceId={workspaceId}>

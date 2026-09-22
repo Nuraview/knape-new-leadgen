@@ -9,6 +9,7 @@ import {
   humanizeStatus,
   notifyEmployeeWhatsapp,
 } from "../whatsapp";
+import { getBrand } from "../../utils/get-brand";
 
 async function createNotification({
   userId,
@@ -133,7 +134,10 @@ async function mirrorToWhatsapp(
     type === "task_mention" && d.mentionerName
       ? `by ${d.mentionerName}`
       : null,
-    "— NuraView",
+    // Signs the WhatsApp mirror. The brand, not the vendor: on a client
+    // instance this line is the only thing in the message that says who
+    // sent it.
+    `— ${getBrand().name}`,
   ].filter(Boolean);
 
   await notifyEmployeeWhatsapp(

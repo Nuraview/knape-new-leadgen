@@ -144,6 +144,18 @@ export type Brand = {
    * there is no team in it to manage.
    */
   showProjectManagement: boolean;
+  /**
+   * Whether to show the work clock and Today's Activity.
+   *
+   * Split out of showProjectManagement, which used to gate both. They are not
+   * the same question: a client can run their own boards — Knape asked for
+   * exactly that on 2026-09-22 — while the clock stays NuraView's. It tracks
+   * VENDOR staff hours, with a half-hourly "are you still working?" prompt,
+   * penalty rules and an overnight auto-close, and it is the first thing in the
+   * sidebar. Handing it to a client asks them to clock in to their own
+   * business.
+   */
+  showWorkClock: boolean;
   signature: BrandSignature;
 };
 
@@ -208,6 +220,11 @@ export function getBrand(): Brand {
     // Opt-OUT rather than opt-in, so crmx1 keeps its Projects nav without
     // needing a new variable set on an already-running deployment.
     showProjectManagement: process.env.BRAND_HIDE_PROJECTS !== "true",
+    // Same opt-out shape, and deliberately a SEPARATE variable rather than a
+    // derivation of the one above: an instance that wants boards but not the
+    // vendor's timesheet has to be able to say so, and before this it could
+    // not. Unset on crmx1 leaves the clock exactly where it was.
+    showWorkClock: process.env.BRAND_HIDE_WORK_CLOCK !== "true",
     signature: {
       // The person signing, so the fallback is the business — never whoever the
       // vendor's founder happens to be.

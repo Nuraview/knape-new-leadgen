@@ -1479,7 +1479,9 @@
     "boardSearchPlaceholder": "Search tickets...",
     "view": {
       "board": "Board",
-      "list": "List"
+      "list": "List",
+      "compact": "Compact",
+      "compactHint": "Fit more cards on the screen"
     },
     "common": {
       "selectTask": "Select task",
@@ -1742,12 +1744,16 @@
         "priority": "Priority",
         "assignee": "Assignee",
         "dueDate": "Due date",
-        "labels": "Labels"
+        "labels": "Labels",
+        "subtasks": "Subtasks"
       },
       "operators": {
         "isAnyOf": "is any of",
-        "includeAnyOf": "include any of"
-      }
+        "includeAnyOf": "include any of",
+        "shownOn": "shown on"
+      },
+      "parentCards": "their parent card ({{total}})",
+      "showSubtaskCards": "Show subtasks as cards"
     },
     "gantt": {
       "pageTitle": "{{name}} — Gantt",
@@ -1781,7 +1787,8 @@
       "noTasks": "No tasks"
     },
     "kanban": {
-      "addTask": "Add task"
+      "addTask": "Add task",
+      "addColumn": "Add column"
     },
     "pr": {
       "merged": "Merged",
@@ -1857,7 +1864,12 @@
       "comments_one": "{{count}} comment",
       "comments_other": "{{count}} comments",
       "attachments_one": "{{count}} attachment",
-      "attachments_other": "{{count}} attachments"
+      "attachments_other": "{{count}} attachments",
+      "subtasks": "{{done}} of {{total}} subtasks done"
+    },
+    "done": {
+      "action": "Mark as done",
+      "undoAction": "Mark as not done"
     }
   },
   "invitations": {

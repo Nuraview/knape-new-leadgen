@@ -12,9 +12,24 @@ import {
   workspaceTable,
 } from "../database/schema";
 import { assertPublicWebhookDestination } from "../plugins/generic-webhook/config";
+import { getBrand } from "../utils/get-brand";
 import { decryptSecret } from "./secrets";
 
 const DEFAULT_OUTBOUND_FETCH_TIMEOUT_MS = 15_000;
+
+/**
+ * The product name to use in notification copy.
+ *
+ * These sentences go to other people's inboxes and push banners, and eleven of
+ * them said "NuraView" outright. On a white-labelled instance that tells
+ * Peter's team they were mentioned in the vendor's product, on the vendor's
+ * behalf, about their own work. Read per call rather than cached at module
+ * load: the API is long-lived and, on Vercel, a reused function instance.
+ *
+ * X-NuraView-Signature below is deliberately NOT branded — it is a wire
+ * protocol header that somebody's webhook receiver is already matching on.
+ */
+const brandName = () => getBrand().name;
 
 async function fetchWithTimeout(
   url: string,
@@ -100,7 +115,7 @@ function buildDeliveryContent(notification: {
         title: "New task created",
         body: taskTitle
           ? `A new task was created: ${taskTitle}`
-          : "A new task was created in NuraView.",
+          : `A new task was created in ${brandName()}.`,
       };
     }
     case "workspace_created": {
@@ -112,7 +127,7 @@ function buildDeliveryContent(notification: {
         title: "Workspace created",
         body: workspaceName
           ? `Workspace created: ${workspaceName}`
-          : "A new workspace was created in NuraView.",
+          : `A new workspace was created in ${brandName()}.`,
       };
     }
     case "task_status_changed": {
@@ -124,7 +139,7 @@ function buildDeliveryContent(notification: {
         body:
           taskTitle && oldStatus && newStatus
             ? `${taskTitle} moved from ${oldStatus} to ${newStatus}.`
-            : "A task status changed in NuraView.",
+            : `A task status changed in ${brandName()}.`,
       };
     }
     case "task_assignee_changed": {
@@ -133,7 +148,7 @@ function buildDeliveryContent(notification: {
         title: "Task assigned to you",
         body: taskTitle
           ? `You were assigned to ${taskTitle}.`
-          : "A task was assigned to you in NuraView.",
+          : `A task was assigned to you in ${brandName()}.`,
       };
     }
     case "time_entry_created": {
@@ -142,7 +157,7 @@ function buildDeliveryContent(notification: {
         title: "Time entry created",
         body: taskTitle
           ? `A time entry was created for ${taskTitle}.`
-          : "A time entry was created in NuraView.",
+          : `A time entry was created in ${brandName()}.`,
       };
     }
     case "due_date_reminder": {
@@ -178,7 +193,7 @@ function buildDeliveryContent(notification: {
           : "You were mentioned",
         body: taskTitle
           ? `You were mentioned in ${taskTitle}.`
-          : "You were mentioned in a NuraView task.",
+          : `You were mentioned in a ${brandName()} task.`,
       };
     }
     case "task_comment": {
@@ -193,13 +208,13 @@ function buildDeliveryContent(notification: {
           : "New task comment",
         body: taskTitle
           ? `A new comment was added to ${taskTitle}.`
-          : "A new comment was added to a NuraView task.",
+          : `A new comment was added to a ${brandName()} task.`,
       };
     }
     default:
       return {
-        title: notification.title ?? "New NuraView notification",
-        body: notification.content ?? "You have a new notification in NuraView.",
+        title: notification.title ?? `New ${brandName()} notification`,
+        body: notification.content ?? `You have a new notification in ${brandName()}.`,
       };
   }
 }
@@ -511,7 +526,7 @@ export async function deliverNotification(
         title: content.title,
         message: content.body,
         actionUrl: context.taskUrl,
-        actionLabel: context.taskUrl ? "Open in NuraView" : undefined,
+        actionLabel: context.taskUrl ? `Open in ${brandName()}` : undefined,
         locale: user.locale ?? null,
       }).then(() => undefined),
     );

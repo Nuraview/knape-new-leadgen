@@ -28,15 +28,16 @@ export function NavMain() {
   if (!workspace) return null;
 
   /*
-   * The whole "Business" group is off on a single-operator client instance.
+   * The whole "Business" group is off on an instance that runs no boards.
    *
-   * Projects / Members / Invitations / Employees describe running a TEAM inside
-   * this CRM. Dan is the only user of his — VK on the 2026-08-03 call: "we don't
-   * need this project management, right? No, no, no. Why does he need that?"
-   * What he does want under CRM is a read-only view of NuraView's work for him,
-   * which is a different surface entirely.
+   * Projects / Members / Employees describe running a TEAM inside this CRM, and
+   * a single-operator client has no team in here to run — VK on the 2026-08-03
+   * call: "we don't need this project management, right? No, no, no."
    *
-   * Gated by BRAND_HIDE_PROJECTS so NuraView's own instance is untouched.
+   * Knape reversed that on 2026-09-22: Peter runs his own board and two of his
+   * people work it beside him. Gated by BRAND_HIDE_PROJECTS precisely so that
+   * reversal is a variable rather than a code change, and NuraView's own
+   * instance is untouched either way.
    */
   if (!brand.showProjectManagement) return null;
 
@@ -67,14 +68,22 @@ export function NavMain() {
     },
     // Invitations removed at the client's request — the workspace is a fixed
     // set of employees, so a pending-invite queue is noise on every page.
-    {
-      // VK 2026-07-28: "just add Employees where I can see all these members"
-      // with hours worked and whether they are still clocked in.
-      title: "Employees",
-      url: "/employees",
-      isActive: window.location.pathname === "/employees",
-      badge: null,
-    },
+    // VK 2026-07-28: "just add Employees where I can see all these members"
+    // with hours worked and whether they are still clocked in.
+    //
+    // Rides with the work clock, not with the boards: the hours and the
+    // still-clocked-in column ARE the clock, so on an instance that does not
+    // run it this page is a member list with two empty columns.
+    ...(brand.showWorkClock
+      ? [
+          {
+            title: "Employees",
+            url: "/employees",
+            isActive: window.location.pathname === "/employees",
+            badge: null,
+          },
+        ]
+      : []),
   ];
 
   return (

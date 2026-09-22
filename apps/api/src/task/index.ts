@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { getTaskCard } from "./card-link";
 import { HTTPException } from "hono/http-exception";
@@ -9,6 +9,7 @@ import {
   assetTable,
   projectTable,
   taskAttachmentTable,
+  taskProjectTable,
   taskTable,
   workspaceTable,
 } from "../database/schema";
@@ -42,6 +43,14 @@ import { VALID_PRIORITIES } from "./validate-task-fields";
 const task = new Hono<{
   Variables: {
     userId: string;
+    /*
+     * Set by workspaceAccess.* before any handler runs (see
+     * utils/workspace-access-middleware.ts), and declared here because a route
+     * that reads it otherwise has to lie to the compiler. Present on every
+     * route in this router that carries one of those middlewares; read it only
+     * from those.
+     */
+    workspaceId: string;
   };
 }>()
   .get(
@@ -408,6 +417,17 @@ const task = new Hono<{
             startDate: v.optional(v.nullable(v.string())),
             dueDate: v.optional(v.nullable(v.string())),
             userId: v.optional(v.nullable(v.string())),
+            /*
+             * The paste-a-JSON fields. Everything below is written by a human
+             * in a textarea, so each one is resolved by NAME and created on
+             * demand rather than requiring ids nobody has to hand — an
+             * importer that needs a uuid per label is an importer nobody uses.
+             */
+            assigneeEmail: v.optional(v.nullable(v.string())),
+            assigneeName: v.optional(v.nullable(v.string())),
+            project: v.optional(v.nullable(v.string())),
+            labels: v.optional(v.array(v.string())),
+            subtasks: v.optional(v.array(v.string())),
           }),
         ),
       }),
@@ -478,6 +498,69 @@ const task = new Hono<{
       const task = await updateTaskStatus({ id, status, currentUserId });
 
       return c.json(task);
+    },
+  )
+  /*
+   * Work stream on a card. Its own endpoint rather than another positional
+   * argument on updateTask, matching how priority and assignee are already
+   * handled — the full update route takes eleven positional args and adding a
+   * twelfth is how the wrong value ends up in the wrong column.
+   */
+  .put(
+    "/task-project/:id",
+    describeRoute({
+      operationId: "updateTaskProjectAssignment",
+      tags: ["Tasks"],
+      description: "Set or clear the work stream a task belongs to",
+      responses: {
+        200: {
+          description: "Task work stream updated",
+          content: {
+            "application/json": { schema: resolver(taskSchema) },
+          },
+        },
+      },
+    }),
+    validator("param", v.object({ id: v.string() })),
+    // null clears it. v.nullable rather than v.optional so "remove the stream"
+    // is expressible — an omitted key would be indistinguishable from "leave".
+    validator("json", v.object({ taskProjectId: v.nullable(v.string()) })),
+    workspaceAccess.fromTask(),
+    requireWorkspacePermission({ task: ["update"] }),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      const { taskProjectId } = c.req.valid("json");
+
+      if (taskProjectId) {
+        // The stream must belong to the same workspace as the card. Without
+        // this a valid id from another workspace would attach cleanly and leak
+        // a stream name across tenants.
+        const workspaceId = c.get("workspaceId");
+        const [stream] = await db
+          .select({ id: taskProjectTable.id })
+          .from(taskProjectTable)
+          .where(
+            and(
+              eq(taskProjectTable.id, taskProjectId),
+              eq(taskProjectTable.workspaceId, workspaceId),
+            ),
+          )
+          .limit(1);
+        if (!stream) {
+          throw new HTTPException(400, {
+            message: "That work stream does not belong to this workspace.",
+          });
+        }
+      }
+
+      const [updated] = await db
+        .update(taskTable)
+        .set({ taskProjectId, updatedAt: new Date() })
+        .where(eq(taskTable.id, id))
+        .returning();
+
+      if (!updated) throw new HTTPException(404, { message: "Task not found" });
+      return c.json(updated);
     },
   )
   .put(

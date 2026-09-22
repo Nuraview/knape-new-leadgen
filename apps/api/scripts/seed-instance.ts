@@ -25,8 +25,13 @@ import { eq } from "drizzle-orm";
 import db from "../src/database";
 import getBrand from "../src/utils/get-brand";
 import {
+  updateNotificationPreferences,
+  upsertWorkspaceRule,
+} from "../src/notification-preferences/service";
+import {
   account as accountTable,
   user_access as userAccessTable,
+  userNotificationPreferenceTable,
   user as userTable,
   workspace as workspaceTable,
   workspace_member as workspaceMemberTable,
@@ -72,11 +77,24 @@ async function main() {
   const projectsArg = (arg("projects", "yes") as string).toLowerCase();
   const canAccessProjects = !["no", "false", "0"].includes(projectsArg);
 
-  if (!email || !password) {
+  /*
+   * Re-run against an existing account WITHOUT touching its password.
+   *
+   * Re-running this script is how an existing account picks up something the
+   * script has learned to do since — the notification rows below, for one. The
+   * only way to do that was to pass a password, which resets it: correcting
+   * Peter's notification settings would have locked Peter out of his own CRM
+   * and handed his new password to whoever ran the script.
+   */
+  const keepPassword = process.argv.includes("--keep-password");
+
+  if (!email || (!password && !keepPassword)) {
     console.error(
       "Usage: seed-instance --email <email> --password <password> [--name <name>]\n" +
         "                    [--role owner|admin|member] [--crm none|leads_kanban|full]\n" +
         "                    [--projects yes|no]\n" +
+        "   or: seed-instance --email <email> --keep-password   (existing account,\n" +
+        "                    re-applies role/access/notification settings only)\n" +
         "   or: SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD env vars.",
     );
     process.exit(1);
@@ -87,12 +105,14 @@ async function main() {
     );
     process.exit(1);
   }
-  if (password.length < 12) {
+  if (!keepPassword && password.length < 12) {
     console.error("Password must be at least 12 characters.");
     process.exit(1);
   }
 
-  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const passwordHash = keepPassword
+    ? null
+    : await bcrypt.hash(password, BCRYPT_ROUNDS);
   const now = new Date();
 
   const existing = await db
@@ -105,12 +125,22 @@ async function main() {
 
   if (existing.length > 0) {
     userId = existing[0].id;
-    await db
-      .update(accountTable)
-      .set({ password: passwordHash, updatedAt: now })
-      .where(eq(accountTable.userId, userId));
-    console.log(`✓ ${email} already existed — password reset (${userId}).`);
+    if (passwordHash) {
+      await db
+        .update(accountTable)
+        .set({ password: passwordHash, updatedAt: now })
+        .where(eq(accountTable.userId, userId));
+      console.log(`✓ ${email} already existed — password reset (${userId}).`);
+    } else {
+      console.log(`✓ ${email} already existed — password untouched (${userId}).`);
+    }
   } else {
+    if (!passwordHash) {
+      console.error(
+        `--keep-password needs an existing account, and there is no ${email}.`,
+      );
+      process.exit(1);
+    }
     const [created] = await db
       .insert(userTable)
       .values({
@@ -141,6 +171,7 @@ async function main() {
   // One workspace for the whole instance. Its presence is what makes the
   // dashboard skip /onboarding, so nobody is ever asked to create one.
   const [workspace] = await db.select().from(workspaceTable).limit(1);
+  let workspaceId = workspace?.id ?? null;
 
   if (workspace) {
     const member = await db
@@ -178,6 +209,7 @@ async function main() {
       joinedAt: now,
     });
 
+    workspaceId = ws.id;
     console.log(`✓ Created workspace "${WORKSPACE_NAME}" (owner: ${email}).`);
   }
 
@@ -202,6 +234,60 @@ async function main() {
     console.log(
       `✓ Access: CRM=${crm}, projects=${canAccessProjects ? "yes" : "no"}.`,
     );
+  }
+
+  /*
+   * Turn email notifications ON for this account.
+   *
+   * deliverNotification() bails twice before it ever reaches SMTP: once when
+   * the user has no user_notification_preference row at all, and again when
+   * they have no ACTIVE user_notification_workspace_rule for the workspace the
+   * task is in. Both `email_enabled` columns default to false. Nothing in the
+   * product writes either row — they are created by the user's own Settings →
+   * Account → Notifications page.
+   *
+   * So a freshly seeded account got the in-app bell and nothing else, forever,
+   * unless the person happened to find that page and flip two switches. VK
+   * asked on 2026-09-22 for tagging Peter, Oswe or Catherine to email them,
+   * "just like crm.tech5SA" — where the old watcher path emailed
+   * unconditionally, with no preference table in front of it. An opt-in that
+   * nobody is told about is indistinguishable from a bug.
+   *
+   * Seeded through the service rather than by writing the tables directly, so
+   * the channel cascade and secret handling stay in one place. Existing rows
+   * are left as they are: this sets a starting point, it does not overrule
+   * somebody who has since turned email off.
+   */
+  if (workspaceId) {
+    const existingPreference =
+      await db.query.userNotificationPreferenceTable.findFirst({
+        where: eq(userNotificationPreferenceTable.userId, userId),
+      });
+
+    if (!existingPreference) {
+      await updateNotificationPreferences(userId, email, {
+        emailEnabled: true,
+        taskAssignmentEnabled: true,
+        taskCommentEnabled: true,
+        taskStatusChangeEnabled: true,
+        dueDateReminderEnabled: true,
+      });
+
+      await upsertWorkspaceRule(userId, workspaceId, email, {
+        isActive: true,
+        emailEnabled: true,
+        ntfyEnabled: false,
+        gotifyEnabled: false,
+        webhookEnabled: false,
+        // Every board in the workspace. "selected" would need a list of
+        // project ids that do not exist yet on a fresh instance.
+        projectMode: "all",
+      });
+
+      console.log("✓ Email notifications on (mentions, comments, assignment).");
+    } else {
+      console.log("✓ Notification preferences already set — left alone.");
+    }
   }
 
   console.log("\nDone. Public registration remains disabled.");

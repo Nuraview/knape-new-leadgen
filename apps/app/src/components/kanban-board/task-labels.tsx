@@ -1,60 +1,59 @@
 import { Badge } from "@/components/ui/badge";
 import useGetLabelsByTask from "@/hooks/queries/label/use-get-labels-by-task";
+import { resolveLabelColor } from "@/lib/label-color";
 
-const labelColors = [
-  { value: "gray", label: "Stone", color: "var(--color-stone-500)" },
-  { value: "dark-gray", label: "Slate", color: "var(--color-slate-500)" },
-  { value: "purple", label: "Lavender", color: "var(--color-violet-500)" },
-  { value: "teal", label: "Sage", color: "var(--color-emerald-600)" },
-  { value: "green", label: "Forest", color: "var(--color-green-600)" },
-  { value: "yellow", label: "Amber", color: "var(--color-amber-600)" },
-  { value: "orange", label: "Terracotta", color: "var(--color-orange-600)" },
-  { value: "pink", label: "Rose", color: "var(--color-rose-600)" },
-  { value: "red", label: "Crimson", color: "var(--color-red-600)" },
-];
-
-function isValidHtmlColor(color: string): boolean {
-  const s = new Option().style;
-  s.color = color;
-  return s.color !== "";
-}
-
-function validColor(value: string): string {
-  const mapped = labelColors.find((c) => c.value === value)?.color;
-  if (mapped) {
-    return mapped;
-  }
-
-  if (isValidHtmlColor(value)) {
-    return value;
-  }
-
-  return "var(--color-neutral-400)";
-}
-
-function TaskCardLabels({ taskId }: { taskId: string }) {
+/**
+ * Labels on a card front.
+ *
+ * `dense` drops the words and keeps the colours: on a compact board the names
+ * are the widest thing on the card, and three of them push everything else onto
+ * another line. The full name stays in the tooltip.
+ */
+function TaskCardLabels({
+  taskId,
+  dense = false,
+}: {
+  taskId: string;
+  dense?: boolean;
+}) {
   const { data: labels = [] } = useGetLabelsByTask(taskId);
 
   if (!labels.length) return null;
 
+  if (dense) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        {labels.map((label: { id: string; name: string; color: string }) => (
+          <span
+            key={label.id}
+            title={label.name}
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ backgroundColor: resolveLabelColor(label.color) }}
+          />
+        ))}
+      </span>
+    );
+  }
+
   return (
-    <div className="flex flex-wrap gap-1">
+    <span className="inline-flex flex-wrap items-center gap-1">
       {labels.map((label: { id: string; name: string; color: string }) => (
         <Badge
           key={label.id}
           variant="outline"
-          className="px-2 py-0.5 text-[10px] flex items-center"
+          className="flex items-center px-1.5 py-0 text-[10px]"
+          title={label.name}
         >
           <span
-            className="inline-block w-1.5 h-1.5 mr-1 rounded-full"
+            className="mr-1 inline-block h-1.5 w-1.5 rounded-full"
             style={{
-              backgroundColor: validColor(label.color),
+              backgroundColor: resolveLabelColor(label.color),
             }}
           />
           <span className="max-w-20 truncate">{label.name}</span>
         </Badge>
       ))}
-    </div>
+    </span>
   );
 }
 

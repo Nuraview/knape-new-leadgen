@@ -94,18 +94,6 @@ function getSettings() {
      * All four are required because the access token cannot be minted without
      * them — reporting true on a partial set would just move the 503 later.
      */
-    /*
-     * The project this instance shares with another deployment, if any.
-     *
-     * Served so the client can tell "a project" from "somebody else's project".
-     * Dan owns his own workspace, so every is-admin check in the UI says yes —
-     * and the project access panel then asked crmx1 to list the members of
-     * NuraView's project, which the service account is rightly not allowed to
-     * manage. A 403 per board render, for a panel that should not have been
-     * offered.
-     */
-    sharedProjectId: process.env.NV_PROJECTS_PROJECT_ID?.trim() || null,
-
     hasDialer: Boolean(
       process.env.TWILIO_ACCOUNT_SID?.trim() &&
         process.env.TWILIO_API_KEY?.trim() &&

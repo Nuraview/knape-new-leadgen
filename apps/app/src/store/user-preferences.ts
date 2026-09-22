@@ -9,6 +9,17 @@ type UserPreferencesStore = {
   ) => void;
 
   viewMode: "board" | "list";
+  /**
+   * Draw subtasks as cards of their own on the board, beside their parent.
+   *
+   * Off by default: subtasks are real tasks here, so a board that shows both
+   * the parent and every line of its checklist turns a twelve-card import with
+   * three subtasks each into forty-eight cards. They live on the front of the
+   * parent instead. On for anyone who works a subtask like any other card.
+   */
+  showSubtaskCards: boolean;
+  setShowSubtaskCards: (show: boolean) => void;
+  toggleSubtaskCards: () => void;
   setViewMode: (mode: "board" | "list") => void;
 
   compactMode: boolean;
@@ -71,6 +82,10 @@ export const useUserPreferencesStore = create<UserPreferencesStore>()(
 
       viewMode: "board",
       setViewMode: (mode) => set({ viewMode: mode }),
+      showSubtaskCards: false,
+      setShowSubtaskCards: (show) => set({ showSubtaskCards: show }),
+      toggleSubtaskCards: () =>
+        set((state) => ({ showSubtaskCards: !state.showSubtaskCards })),
 
       compactMode: false,
       setCompactMode: (compact) => set({ compactMode: compact }),
@@ -101,6 +116,7 @@ export const useUserPreferencesStore = create<UserPreferencesStore>()(
           showLabels: true,
           showTaskNumbers: true,
           showPriority: true,
+          showSubtaskCards: false,
         }),
 
       sidebarDefaultOpen: true,

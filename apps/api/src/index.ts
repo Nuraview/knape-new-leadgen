@@ -38,8 +38,6 @@ import invitation from "./invitation";
 import label from "./label";
 import marketing from "./marketing";
 import lead from "./lead";
-import nvprojects from "./nvprojects";
-import { sharedProjectPassthrough } from "./nvprojects/passthrough";
 import order from "./order";
 import linkedin from "./linkedin";
 import linkedinPublic from "./linkedin/public";
@@ -76,6 +74,7 @@ import search from "./search";
 import slackIntegration from "./slack-integration";
 import { getPrivateObject } from "./storage/s3";
 import task from "./task";
+import taskProject from "./task-project";
 import taskRelation from "./task-relation";
 import telegramIntegration from "./telegram-integration";
 import timeEntry from "./time-entry";
@@ -608,22 +607,6 @@ export function createApp() {
     },
   );
 
-  /*
-   * Members of the SHARED workspace come from crmx1, not from here.
-   *
-   * The board's assignee filter and avatars load
-   * /api/auth/organization/list-members?organizationId=<workspace>. That
-   * workspace is NuraView's, so this instance's better-auth answered 403
-   * "You are not a member of this organization" on every board render.
-   *
-   * Registered before the better-auth catch-all below, and scoped to this ONE
-   * endpoint rather than /auth/*: forwarding the whole auth surface would hand
-   * sign-in, session and organization management to another deployment. The
-   * middleware still only forwards when the organization id is the shared one,
-   * so any other workspace stays local.
-   */
-  api.use("/auth/organization/list-members", sharedProjectPassthrough);
-
   api.on(["POST", "GET", "PUT", "DELETE"], "/auth/*", async (c) => {
     const authHeader = c.req.header("Authorization");
     const apiKeyHeader = c.req.header("x-api-key");
@@ -700,6 +683,7 @@ export function createApp() {
     "/comment",
     "/time-entry",
     "/label",
+    "/task-project",
     "/task-relation",
     "/workflow-rule",
     "/external-link",
@@ -716,19 +700,6 @@ export function createApp() {
     // Both forms: "/project" alone does not match the "/project/*" pattern.
     api.use(prefix, requireProjectAccess);
     api.use(`${prefix}/*`, requireProjectAccess);
-
-    /*
-     * NuraView's shared project answers on these same endpoints.
-     *
-     * Registered after the access gate and before the routers, so a request
-     * naming the shared project is authorised exactly like a local one and then
-     * forwarded to crmx1 instead of hitting this database. Everything else
-     * falls straight through. This is what lets the real board UI — backlog,
-     * gantt, list view, labels, assignees, task detail — work against a project
-     * that does not live here, without a second implementation of any of it.
-     */
-    api.use(prefix, sharedProjectPassthrough);
-    api.use(`${prefix}/*`, sharedProjectPassthrough);
   }
 
   const projectApi = api.route("/project", project);
@@ -812,13 +783,6 @@ export function createApp() {
    * /portal itself needs a session but NOT CRM access — a customer is not a CRM
    * user, and requireCrmAccess would lock them out of their own order.
    */
-  /*
-   * The shared project board. Dan's dashboard and NuraView's read and write the
-   * SAME project on crmx1 through this proxy, so "sync both ways" needs no sync
-   * — there is one source of truth. Pinned to a single project id; NuraView's
-   * internal boards are not reachable from here.
-   */
-  api.route("/nvprojects", nvprojects);
   api.route("/order", order);
   api.route("/linkedin", linkedin);
   api.route("/portal", portal);
@@ -863,6 +827,7 @@ export function createApp() {
     "/telegram-integration",
     telegramIntegration,
   );
+  const taskProjectApi = api.route("/task-project", taskProject);
   const taskRelationApi = api.route("/task-relation", taskRelation);
   const externalLinkApi = api.route("/external-link", externalLink);
   const workflowRuleApi = api.route("/workflow-rule", workflowRule);
@@ -1028,6 +993,7 @@ export function createApp() {
     searchApi,
     slackIntegrationApi,
     taskApi,
+    taskProjectApi,
     taskRelationApi,
     telegramIntegrationApi,
     timeEntryApi,
@@ -1192,6 +1158,7 @@ const {
   searchApi,
   slackIntegrationApi,
   taskApi,
+  taskProjectApi,
   taskRelationApi,
   telegramIntegrationApi,
   timeEntryApi,
@@ -1226,6 +1193,7 @@ export type AppType =
   | typeof discordIntegrationApi
   | typeof slackIntegrationApi
   | typeof telegramIntegrationApi
+  | typeof taskProjectApi
   | typeof taskRelationApi
   | typeof externalLinkApi
   | typeof workflowRuleApi

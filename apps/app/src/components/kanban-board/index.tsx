@@ -17,12 +17,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { produce } from "immer";
 import { useEffect, useState } from "react";
+import { useSetTaskStatus } from "@/hooks/mutations/task/use-set-task-status";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import { useRegisterShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { doneSlugOf, isDoneStatus, openSlugOf } from "@/lib/task-done";
 import useBulkSelectionStore from "@/store/bulk-selection";
 import useProjectStore from "@/store/project";
+import { useUserPreferencesStore } from "@/store/user-preferences";
 import type { ProjectWithTasks } from "@/types/project";
 import BulkToolbar from "../bulk-selection/bulk-toolbar";
+import AddColumn from "./add-column";
 import Column from "./column";
 import TaskCard from "./task-card";
 
@@ -43,6 +47,8 @@ function KanbanBoard({ project, disableDragDrop = false }: KanbanBoardProps) {
   } = useBulkSelectionStore();
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const { mutate: updateTask } = useUpdateTask();
+  const { mutateAsync: setTaskStatus } = useSetTaskStatus();
+  const compact = useUserPreferencesStore((state) => state.compactMode);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,6 +79,28 @@ function KanbanBoard({ project, disableDragDrop = false }: KanbanBoardProps) {
         if (state.focusedTaskId) {
           navigate({ to: ".", search: { taskId: state.focusedTaskId } });
         }
+      },
+      /*
+       * Tick the focused card. j / k walk the board, d finishes what they land
+       * on — the keyboard half of the tick on the card front, for the same
+       * reason it exists: a status change should not cost a drag across a
+       * horizontally scrolling board.
+       */
+      d: () => {
+        if (!focusedTaskId || !project) return;
+        const task = project.columns
+          .flatMap((column) => column.tasks)
+          .find((candidate) => candidate.id === focusedTaskId);
+        if (!task) return;
+        const target = isDoneStatus(task.status, project.columns)
+          ? openSlugOf(project.columns)
+          : doneSlugOf(project.columns);
+        if (!target) return;
+        void setTaskStatus({
+          taskId: task.id,
+          projectId: project.id,
+          status: target,
+        });
       },
       Enter: () => {
         if (focusedTaskId && project) {
@@ -194,7 +222,7 @@ function KanbanBoard({ project, disableDragDrop = false }: KanbanBoardProps) {
         </header>
 
         <div className="relative min-h-0 flex-1">
-          <div className="scroll-x-contain flex h-full flex-1 gap-4 px-2 pb-4 sm:px-4 md:px-5">
+          <div className="flex h-full flex-1 gap-4 overflow-x-auto px-4 pb-4 md:px-5">
             {[...Array(4)].map((_, i) => (
               <div
                 key={`kanban-column-skeleton-${
@@ -246,16 +274,29 @@ function KanbanBoard({ project, disableDragDrop = false }: KanbanBoardProps) {
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-full w-full flex-col bg-linear-to-b from-muted/20 to-background">
-        <div className="scroll-x-contain snap-strip min-h-0 flex-1">
-          <div className="flex h-full min-w-max gap-4 px-2 py-4 sm:px-4 md:px-5">
+        <div className="min-h-0 flex-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
+          {/*
+            Column width and gutter follow the density. A 320px minimum with a
+            16px gutter fits four columns on a laptop and cuts the fifth in
+            half; compact fits five with room to spare, which is the difference
+            between seeing the board and scrolling it sideways.
+          */}
+          <div
+            className={`flex h-full min-w-max ${
+              compact ? "gap-2 px-2 py-2 md:px-3" : "gap-3 px-3 py-3 md:px-4"
+            }`}
+          >
             {project.columns?.map((column) => (
               <div
                 key={column.id}
-                className="h-full max-w-96 min-w-80 shrink-0 flex-1"
+                className={`h-full shrink-0 flex-1 ${
+                  compact ? "min-w-64 max-w-80" : "min-w-72 max-w-96"
+                }`}
               >
                 <Column column={column} disableDragDrop={disableDragDrop} />
               </div>
             ))}
+            <AddColumn projectId={project.id} />
           </div>
         </div>
       </div>

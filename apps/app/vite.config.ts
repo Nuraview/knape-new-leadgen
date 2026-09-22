@@ -39,7 +39,23 @@ export default defineConfig({
     // Without dedupe, Vite pre-bundles both and every hook call throws
     // "Invalid hook call ... more than one copy of React". Remove once
     // apps/web is retired and only one React version remains.
-    dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-query"],
+    // ProseMirror does `instanceof` checks across Node/Fragment/Slice, so a second
+    // copy in the bundle makes every cross-copy call throw "looks like multiple
+    // versions of prosemirror-model were loaded" — that is what silently killed
+    // @mention insertion, and a mention that never gets inserted is a mention
+    // that never raises a notification. Root package.json resolutions flatten
+    // the install tree; this keeps the bundler honest if a transitive pin ever
+    // nests one again.
+    dedupe: [
+      "react",
+      "react-dom",
+      "@tanstack/react-router",
+      "@tanstack/react-query",
+      "prosemirror-model",
+      "prosemirror-transform",
+      "prosemirror-view",
+      "prosemirror-state",
+    ],
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@i18n": path.resolve(__dirname, "../../i18n"),

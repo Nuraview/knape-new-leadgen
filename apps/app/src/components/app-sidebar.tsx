@@ -48,15 +48,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: access } = useMyAccess();
   const brand = useBrand();
   /*
-   * Team-management surfaces: the work clock, the Business group and the
-   * project list.
+   * The Business group: the project list, members and invitations.
    *
    * Two independent gates, and both must pass:
    *   - per USER, canAccessProjects — a lead-gen account has none of this.
-   *   - per INSTANCE, brand.showProjectManagement — a white-labelled client
-   *     runs their own business and does not manage our team inside their CRM.
-   *     VK, 2026-08-03: "we don't need this project management, right? No, no,
-   *     no. Why does he need that?"
+   *   - per INSTANCE, brand.showProjectManagement.
+   *
+   * VK said on 2026-08-03 "we don't need this project management, right? No,
+   * no, no", and on 2026-09-22 the opposite: Knape's own board, with Peter on
+   * it and two of his team beside him. That is what the flag is for — it is an
+   * instance setting, not a fact about the product, so the reversal is one
+   * variable and not a code change.
    *
    * Gated at the mount point, not just inside each component. NavMain and
    * NavProjects fire their queries (/invitation, /project) during render, and
@@ -113,12 +115,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           Hidden on a client instance. It tracks NuraView STAFF hours — the
           half-hourly "are you still working?" prompt, the penalty rules, the
           overnight auto-close — and it is the single most prominent thing in
-          the sidebar. On Dan's CRM it would be the first item he sees, asking
-          him to clock in to his own business. Gated on the same flag that
-          hides Projects/Members/Employees, since it is the same team-management
-          surface (BRAND_HIDE_PROJECTS).
+          the sidebar. On Peter's CRM it would be the first item he sees, asking
+          him to clock in to his own business.
+
+          On its OWN flag (BRAND_HIDE_WORK_CLOCK), no longer sharing
+          BRAND_HIDE_PROJECTS. The two rode together while no client had boards,
+          and the moment one did — Knape, 2026-09-22 — turning the boards on
+          would have handed them the vendor's timesheet as well.
         */}
-        {showTeamSurfaces && <WorkClock />}
+        {brand.showWorkClock && <WorkClock />}
         <NavCrm />
         {showTeamSurfaces && (
           <>
@@ -133,12 +138,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           numbers about somebody else's team, sitting under a sidebar that has
           had every other team surface removed.
 
-          Gated on brand.showProjectManagement alone, NOT showTeamSurfaces: that
-          also requires canAccessProjects, and a lead-gen account on NuraView's
-          own instance is exactly who this panel is for — calls made and emails
-          sent are their whole job.
+          Gated on brand.showWorkClock, NOT showTeamSurfaces: the latter also
+          requires canAccessProjects, and a lead-gen account on NuraView's own
+          instance is exactly who this panel is for — calls made and emails sent
+          are their whole job. It rides with the clock rather than with the
+          boards because it is the same vendor-staff readout, counted per person.
         */}
-        {brand.showProjectManagement && <NavActivityToday />}
+        {brand.showWorkClock && <NavActivityToday />}
       </SidebarContent>
       <SidebarFooter>
         <div className="flex items-center justify-between">

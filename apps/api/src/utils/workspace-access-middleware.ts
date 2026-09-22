@@ -18,7 +18,12 @@ type WorkspaceIdSource =
         | "activity"
         | "comment"
         | "column"
-        | "workflowRule";
+        | "workflowRule"
+        // Work streams. resolveWorkspaceId below already handles this case and
+        // fromTaskProject already asks for it; the source union was the one
+        // place it was missing, so every call to fromTaskProject was a type
+        // error.
+        | "taskProject";
       idKey: string;
     };
 
@@ -99,7 +104,8 @@ async function lookupWorkspaceId(
     | "activity"
     | "comment"
     | "column"
-    | "workflowRule",
+    | "workflowRule"
+    | "taskProject",
   id: string,
 ): Promise<string | null> {
   try {
@@ -135,6 +141,15 @@ async function lookupWorkspaceId(
           .where(eq(schema.labelTable.id, id))
           .limit(1);
         return label?.workspaceId || null;
+      }
+
+      case "taskProject": {
+        const [row] = await db
+          .select({ workspaceId: schema.taskProjectTable.workspaceId })
+          .from(schema.taskProjectTable)
+          .where(eq(schema.taskProjectTable.id, id))
+          .limit(1);
+        return row?.workspaceId || null;
       }
 
       case "timeEntry": {
@@ -273,6 +288,14 @@ export const workspaceAccess = {
     workspaceAccessMiddleware({
       sources: [
         { type: "lookup", resource: "label", idKey },
+        { type: "query", key: "workspaceId" },
+      ],
+    }),
+
+  fromTaskProject: (idKey = "id") =>
+    workspaceAccessMiddleware({
+      sources: [
+        { type: "lookup", resource: "taskProject", idKey },
         { type: "query", key: "workspaceId" },
       ],
     }),

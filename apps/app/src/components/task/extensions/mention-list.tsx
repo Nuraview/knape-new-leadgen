@@ -57,7 +57,12 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
             type="button"
             key={item.id}
             className={`nuraview-mention-item${index === selected ? " is-active" : ""}`}
-            onClick={() => select(index)}
+            // The popup lives outside the editor, so a plain click would blur it
+            // first and drop the selection the insert range is anchored to.
+            onMouseDown={(event) => {
+              event.preventDefault();
+              select(index);
+            }}
             onMouseEnter={() => setSelected(index)}
           >
             <Avatar className="h-5 w-5">

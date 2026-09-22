@@ -18,7 +18,7 @@ lead discovery and enrichment.
 | Its database | `leadgen-pg` container, db `leadgen` — Knape's live pipeline data | 5,889 accounts, 2,245 contacts |
 | CRM API (Hono) | `apps/api`, db `knape_pm` | migrated, not yet started |
 | CRM database | `leadgen-pg`, db `knape_crm` | tables applied |
-| SPA (`apps/app`) | not yet built | see "What is left" |
+| SPA (`apps/app`) | builds clean; not yet opened in a browser | see "What is left" |
 
 Three other client services on this box are untouched and still `active`:
 `cockpit-api` (:8787, Knape's pipeline), `winday-api` (:8788),
@@ -81,6 +81,127 @@ artwork decisions):
 - The icons **invert** the mark — cyan tile, charcoal K. The disc as supplied is
   a charcoal circle, and at 16px that is the same dark blob as every other
   favicon in the tab strip.
+
+---
+
+## The project board (2026-09-22)
+
+VK asked for NuraView's project-management board on this instance — "you just
+duplicate that, it here on crm.knapesolutions.com... there is labels, there is
+subtasks, everything" — with Peter on it and two of his team, Oswe and
+Catherine, working it beside him. That reverses the 2026-08-03 decision ("we
+don't need this project management, right? No, no, no").
+
+**The board was already here.** This repo is a vendored fork of
+[Kaneo](https://github.com/usekaneo/kaneo) (`docs/vendor/kaneo-manifest.json`),
+the same code NuraView runs, and `column`, `label`, `comment`, `workspace`,
+`invitation`, `task-relation`, `time-entry` and `workflow-rule` were already
+byte-identical to theirs. Three things stood between that and a usable board.
+
+### It was switched off, by a flag that did two jobs
+
+`BRAND_HIDE_PROJECTS=true` hid the Business group **and** the work clock,
+Employees and Today's Activity. Flipping it wholesale would have put NuraView's
+staff timesheet — the half-hourly "are you still working?" prompt, the penalty
+rules, the overnight auto-close — at the top of Peter's sidebar, asking him to
+clock in to his own business.
+
+Split into `BRAND_HIDE_PROJECTS` (boards, now `false`) and
+`BRAND_HIDE_WORK_CLOCK` (the vendor's timesheet, `true`). Employees rides with
+the clock, since its hours and still-clocked-in columns *are* the clock.
+NuraView's own instance sets neither and is unchanged.
+
+### There were three boards, and only one of them was the right one
+
+`/projects` proxied the Python cockpit's `pm_*` tables; `/board` redirected into
+NuraView's own shared project through `apps/api/src/nvprojects`. Three nav items
+called some variant of "Projects", each over a different database. Both are
+gone, along with the passthrough middleware, `NV_PROJECTS_*` and the
+`sharedProjectId` special case in the project access panel. The board is the
+Kaneo one under Business, on Knape's own data.
+
+### The board had drifted behind NuraView's
+
+Ported from `../nextcrm-app`, NuraView-only behaviour stripped on the way in:
+
+- **The permission split.** `manageTasks` demanded create AND update AND delete,
+  and better-auth grants a bundle only when every action is held. A `member` has
+  update but not delete, so *every* editing control read false — status,
+  priority, title, labels, dates, subtasks, the whole context menu. Oswe and
+  Catherine would have opened a board that looked broken rather than restricted.
+  Now `updateTasks` / `deleteTasks`, matching what the API already asks for.
+- **Subtasks on the card.** Subtasks are real `task` rows joined by
+  `task_relation`, so the board drew every checklist item as its own card — a
+  twelve-row import with three subtasks each arrived as forty-eight ("its adding
+  as separate tasks when bulk import", VK). They are hidden as cards now and the
+  parent carries a `2/5` badge that opens into a tickable checklist, with a
+  toolbar toggle to put them back.
+- **An import that keeps labels and subtasks.** `import-tasks.ts` now resolves
+  `labels[]`, `subtasks[]` and a work-stream name per row, creating each on
+  demand. `validate-task-fields.ts` stops mapping an unknown status to
+  "planned" — that is the backlog, not a column, and it is how 146 cards were
+  created, reported successful, and rendered on no board at all.
+- **Add a column from the board**, and paste-a-JSON bulk add, both from the
+  toolbar.
+- **Work streams** (`task_project`, migration `0050`): the "Project" chip on a
+  card, workspace-scoped and distinct from the board it sits on.
+- **`visibleProjectIds`**, so the "which boards may I see" rule lives in one
+  place instead of two.
+
+**Not ported**, because it is NuraView's business and not Knape's: the personal
+board hand-off (`task/handoff.ts` — assigning a card moves it to the assignee's
+own board), `externalClient` / client-sync, the Discord Messages panel,
+proofing, employee pay and the scheduler. `task/placement.ts` here holds the
+generic column-placement half of `handoff.ts`, which the import genuinely needs.
+
+### Tagging somebody did not email them
+
+The mention pipeline was complete and identical to NuraView's, and delivered
+nothing, for three separate reasons:
+
+1. `deliverNotification` returns early without a `user_notification_preference`
+   row, and again without an active `user_notification_workspace_rule`. Nothing
+   in the product writes either — they are created by the user's own Settings →
+   Account → Notifications page.
+2. `email_enabled` is `.default(false)` on both tables.
+3. `SMTP_*` was undocumented for this instance, and `sendNotificationEmail`
+   returns `{ success: false, reason: "SMTP_NOT_CONFIGURED" }` **silently** —
+   the in-app bell still lights up, so the feature looks alive while no mail has
+   ever left the building.
+
+`seed-instance.ts` now writes both rows, email on, for a new account (and leaves
+an existing one alone). The `SMTP_*` block is documented in
+`deploy/env/knape.env.example`. crm.tech5SA, the reference VK gave, had no
+preference table in front of it at all — an opt-in nobody is told about is
+indistinguishable from a bug.
+
+Also: a duplicated `prosemirror-model` in the install tree made every
+cross-copy `Fragment` call throw, which killed @mention **insertion** in the
+editor. Pinned in root `resolutions` and deduped in `vite.config.ts` /
+`vitest.config.ts`, matching NuraView.
+
+Eleven strings in `notification-preferences/delivery.ts` said "NuraView"
+outright — "You were mentioned in a NuraView task", "Open in NuraView". They
+read the brand now, as does the WhatsApp mirror's signature.
+
+### Accounts
+
+- **Peter** — owner, CRM full. `visibleProjectIds()` returns `"all"`; he needs
+  no assignment rows.
+- **Oswe and Catherine** — `--role member --crm none --projects yes`. `NavCrm`
+  returns null for them and every `/lead`, `/pipeline`, `/dialer`, `/proposal`
+  and `/invoice` route 403s server-side.
+
+  `get-projects.ts` fails closed: a member with no `project_member` row sees an
+  **empty** Projects list, deliberately, so a default can never leak one
+  client's boards. So they need a row per board —
+  `assign-project.ts --email <them> --all` writes them all in one command. A
+  board created afterwards needs them added from its Members tab.
+
+`seed-instance.ts --keep-password` re-applies role, access and notification
+settings to an existing account without resetting its password, which is how
+Peter picks up the notification rows without being locked out of his own CRM.
+
 
 ---
 
@@ -178,10 +299,16 @@ Also fixed: `scripts/crm-apply.ts` never loaded dotenv, so it failed with
 
 ## What is left
 
-1. **Build and run the SPA** — `apps/app` has not been built or opened in a
-   browser yet. This is the one thing that has not been eyeballed, and it is the
-   deliverable. `bun run --filter @nuraview/app build` with the `BRAND_*` vars
-   exported, then start `apps/api` and log in.
+1. **Open the SPA in a browser.** It builds, typechecks with zero errors and its
+   tests pass, but nobody has logged in and looked at it. That is still the one
+   thing that has not been eyeballed, and it is the deliverable. Start `apps/api`
+   with the `BRAND_*` vars exported and sign in as Peter.
+   - `SMTP_*` has to be set on the instance before a mention email can be
+     tested at all, and it fails silently when it is not.
+   - Confirm `crm.knapesolutions.com` is the live vhost — `BRAND_SITE_URL`,
+     `APP_URL` and `NURAVIEW_CLIENT_URL` are still the guess noted above, and
+     every mention email's link is built from them.
+   - Apply migration `0050_task_project` (`bun run pm:migrate`).
 2. **Discovery/enrichment vocabulary** (~200 refs in `sources/` and `pipeline/`)
    still assumes school districts — domain heuristics, staff-directory crawling,
    `_looks_like_school_domain`. None of it is on the dashboard's read path and

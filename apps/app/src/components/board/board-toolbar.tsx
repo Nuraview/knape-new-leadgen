@@ -1,7 +1,9 @@
-import { Filter, PanelsTopLeft, Rows3, X } from "lucide-react";
+import { AlignJustify, Filter, PanelsTopLeft, Rows3, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import SortControl from "@/components/common/sort-control";
+import { BulkAddTasks } from "@/components/board/bulk-add-tasks";
+import { AddColumnButton } from "@/components/kanban-board/add-column";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -25,6 +27,7 @@ import { getInitials } from "@/lib/get-initials";
 import { getPriorityLabel } from "@/lib/i18n/domain";
 import { getPriorityIcon } from "@/lib/priority";
 import type { SortConfig } from "@/lib/sort-tasks";
+import { useUserPreferencesStore } from "@/store/user-preferences";
 import type { ProjectWithTasks } from "@/types/project";
 
 type WorkspaceLabel = {
@@ -59,6 +62,10 @@ type BoardToolbarProps = {
   setViewMode: (mode: "board" | "list") => void;
   sort: SortConfig;
   onSortChange: (sort: SortConfig) => void;
+  showSubtaskCards: boolean;
+  onToggleSubtaskCards: () => void;
+  /** How many cards the subtask rule is holding back right now. */
+  hiddenSubtaskCount: number;
 };
 
 function CheckSlot({ checked }: { checked: boolean }) {
@@ -143,8 +150,15 @@ export default function BoardToolbar({
   setViewMode,
   sort,
   onSortChange,
+  showSubtaskCards,
+  onToggleSubtaskCards,
+  hiddenSubtaskCount,
 }: BoardToolbarProps) {
   const { t } = useTranslation();
+  const compact = useUserPreferencesStore((state) => state.compactMode);
+  const setCompactMode = useUserPreferencesStore(
+    (state) => state.setCompactMode,
+  );
   const selectedStatusIds = filters.status ?? [];
   const selectedPriorityIds = filters.priority ?? [];
   const selectedAssigneeIds = filters.assignee ?? [];
@@ -514,6 +528,24 @@ export default function BoardToolbar({
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
 
+                <DropdownMenuSeparator />
+
+                {/*
+                  Not a filter on a field — a rule about what counts as a card.
+                  It lives in this menu anyway because this is where people look
+                  when the board is showing more or less than they expected.
+                */}
+                <DropdownMenuItem
+                  onClick={onToggleSubtaskCards}
+                  closeOnClick={false}
+                  className="h-8 rounded-md text-sm"
+                >
+                  <CheckSlot checked={showSubtaskCards} />
+                  {t("tasks:boardFilters.showSubtaskCards", {
+                    defaultValue: "Show subtasks as cards",
+                  })}
+                </DropdownMenuItem>
+
                 {hasActiveFilters && (
                   <>
                     <DropdownMenuSeparator />
@@ -631,6 +663,27 @@ export default function BoardToolbar({
               />
             )}
 
+            {/*
+              A board quietly holding cards back is the thing that makes people
+              distrust it. The chip only appears when something IS hidden, and
+              clicking its X shows them.
+            */}
+            {hiddenSubtaskCount > 0 && (
+              <ActiveFilterChip
+                subject={t("tasks:boardFilters.subjects.subtasks", {
+                  defaultValue: "Subtasks",
+                })}
+                operator={t("tasks:boardFilters.operators.shownOn", {
+                  defaultValue: "shown on",
+                })}
+                value={t("tasks:boardFilters.parentCards", {
+                  total: hiddenSubtaskCount,
+                  defaultValue: `their parent card (${hiddenSubtaskCount})`,
+                })}
+                onClear={onToggleSubtaskCards}
+              />
+            )}
+
             {filters.labels && filters.labels.length > 0 && (
               <ActiveFilterChip
                 subject={t("tasks:boardFilters.subjects.labels")}
@@ -643,8 +696,33 @@ export default function BoardToolbar({
             )}
           </div>
 
-          <div className="inline-flex items-center gap-1">
+          <div className="inline-flex items-center gap-2">
+            <BulkAddTasks projectId={project?.id} />
+            <AddColumnButton projectId={project?.id} />
+
+            {/*
+              Density. Not a display preference buried in account settings —
+              how much of the board fits on the screen is a decision people
+              make while looking at the board.
+            */}
             <button
+              type="button"
+              className={`inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors ${
+                compact
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+              }`}
+              onClick={() => setCompactMode(!compact)}
+              title={t("tasks:view.compactHint", {
+                defaultValue: "Fit more cards on the screen",
+              })}
+            >
+              <AlignJustify className="h-3 w-3" />
+              {t("tasks:view.compact", { defaultValue: "Compact" })}
+            </button>
+
+            <div className="inline-flex items-center gap-1">
+              <button
               type="button"
               className={`inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors ${
                 viewMode === "board"
@@ -667,7 +745,8 @@ export default function BoardToolbar({
             >
               <Rows3 className="h-3 w-3" />
               {t("tasks:view.list")}
-            </button>
+              </button>
+            </div>
           </div>
         </div>
       </div>

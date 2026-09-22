@@ -203,6 +203,38 @@ export async function requireProjectAccess(c: Context, next: Next) {
 }
 
 /**
+ * Which projects this user may open, as a list.
+ *
+ * The set form of canOpenProject below, and the same rule the Projects page
+ * uses (project/controllers/get-projects.ts calls this). It exists because the
+ * assistant asks the same question a third time, and three copies of an access
+ * rule is three chances for one of them to fail open — which is exactly what
+ * happened before assignments were enforced: Javed could read Habib's client
+ * work because the list said "every project" while the comment said otherwise.
+ *
+ *   no project access        -> []
+ *   owner / admin            -> "all"
+ *   member WITH assignments  -> only those
+ *   member WITHOUT any       -> []
+ */
+export async function visibleProjectIds(
+  userId: string,
+): Promise<string[] | "all"> {
+  if (!userId) return [];
+  if (!(await canAccessProjects(userId))) return [];
+
+  const role = await getUserWorkspaceRole(userId);
+  if (role === "owner" || role === "admin") return "all";
+
+  const rows = await db
+    .select({ projectId: projectMemberTable.projectId })
+    .from(projectMemberTable)
+    .where(eq(projectMemberTable.userId, userId));
+
+  return rows.map((r) => r.projectId);
+}
+
+/**
  * May this user open THIS project?
  *
  * canAccessProjects answers a coarser question — "is the PM module on for this

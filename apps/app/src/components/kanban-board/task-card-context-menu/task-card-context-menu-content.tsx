@@ -74,8 +74,15 @@ export default function TaskCardContextMenuContent({
   const { mutateAsync: updateTaskTitle } = useUpdateTaskTitle();
   const { mutateAsync: updateTaskDescription } = useUpdateTaskDescription();
   const { mutateAsync: updateTaskDueDate } = useUpdateTaskDueDate();
-  const { canManageTasks, canAssignTasks } = useWorkspacePermission();
-  const canEdit = canManageTasks();
+  const { canUpdateTasks, canDeleteTasks, canAssignTasks } =
+    useWorkspacePermission();
+  /*
+   * Editing and destroying are separate permissions, and this menu does both.
+   * It used to ask one question — manageTasks, which requires delete — so a
+   * member holding `update` got a menu with nothing in it but Copy link.
+   */
+  const canEdit = canUpdateTasks();
+  const canDelete = canDeleteTasks();
   const canAssign = canAssignTasks();
 
   const usersOptions = useMemo(() => {
@@ -293,6 +300,8 @@ export default function TaskCardContextMenuContent({
         </ContextMenuSub>
       )}
 
+      {/* Archiving and re-planning are status changes, and reversible — they
+          belong with editing, not with deletion. */}
       {canEdit && (
         <>
           <ContextMenuSeparator />
@@ -304,7 +313,11 @@ export default function TaskCardContextMenuContent({
           <ContextMenuItem onClick={() => handleChange("status", "planned")}>
             <span>{t("tasks:actions.markAsPlanned")}</span>
           </ContextMenuItem>
+        </>
+      )}
 
+      {canDelete && (
+        <>
           <ContextMenuSeparator />
 
           <ContextMenuItem

@@ -18,6 +18,8 @@ import {
   labelTable,
   projectTable,
   taskAttachmentTable,
+  taskProjectTable,
+  taskRelationTable,
   taskTable,
   userTable,
 } from "../../database/schema";
@@ -138,6 +140,7 @@ async function getTasks(projectId: string, options: GetTasksOptions = {}) {
     assigneeId: userTable.id,
     assigneeImage: userTable.image,
     projectId: taskTable.projectId,
+    taskProjectId: taskTable.taskProjectId,
   };
 
   const query = db
@@ -202,6 +205,119 @@ async function getTasks(projectId: string, options: GetTasksOptions = {}) {
           .groupBy(taskAttachmentTable.taskId)
       : [];
 
+  /*
+   * The subtasks hanging off each card on this page — the "2/5" badge, and the
+   * checklist behind it.
+   *
+   * Titles come back with the counts rather than in a second round trip
+   * because the card front now expands into the list: hiding subtask cards
+   * from the columns is only defensible if the parent shows what it is hiding,
+   * and one query for the whole page is what makes that affordable.
+   *
+   * "Done" is defined exactly as the detail panel defines it
+   * (components/task/task-subtasks.tsx): a subtask counts as complete when its
+   * STATUS matches a column marked isFinal. The join is on
+   * (projectId, slug) rather than the child's columnId on purpose — that is
+   * the same lookup the panel does, and older rows can carry a status with no
+   * columnId, which an id join would silently count as not-done. A card
+   * disagreeing with the panel it opens is worse than no badge.
+   */
+  const subtaskRows =
+    taskIds.length > 0
+      ? await db
+          .select({
+            parentId: taskRelationTable.sourceTaskId,
+            id: taskTable.id,
+            title: taskTable.title,
+            status: taskTable.status,
+            done: sql<boolean>`coalesce(${columnTable.isFinal}, false)`,
+          })
+          .from(taskRelationTable)
+          .innerJoin(
+            taskTable,
+            eq(taskTable.id, taskRelationTable.targetTaskId),
+          )
+          .leftJoin(
+            columnTable,
+            and(
+              eq(columnTable.projectId, taskTable.projectId),
+              eq(columnTable.slug, taskTable.status),
+            ),
+          )
+          .where(
+            and(
+              inArray(taskRelationTable.sourceTaskId, taskIds),
+              eq(taskRelationTable.relationType, "subtask"),
+            ),
+          )
+          .orderBy(asc(taskTable.position), asc(taskTable.number))
+      : [];
+
+  const subtaskListMap = new Map<
+    string,
+    Array<{ id: string; title: string; status: string; done: boolean }>
+  >();
+  /*
+   * Which cards are somebody's subtask, so the board can stop drawing them
+   * twice.
+   *
+   * A subtask is a real task joined by task_relation — that is what makes it
+   * assignable, datable and openable — but it is ALSO a line on its parent's
+   * checklist, and a board that shows both puts every checklist item in a
+   * column of its own. One 12-card import with three subtasks each arrived as
+   * 48 cards, which is not a board anybody can read.
+   *
+   * Only parents on THIS board are consulted (the relation query is keyed on
+   * this page's task ids), so a subtask handed to somebody else still shows up
+   * as an ordinary card on their board — it has no parent there to hide behind.
+   */
+  const parentOf = new Map<string, string>();
+  for (const row of subtaskRows) {
+    if (!subtaskListMap.has(row.parentId)) subtaskListMap.set(row.parentId, []);
+    subtaskListMap.get(row.parentId)?.push({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      done: Boolean(row.done),
+    });
+    parentOf.set(row.id, row.parentId);
+  }
+
+  const subtaskCountMap = new Map(
+    [...subtaskListMap.entries()].map(([parentId, children]) => [
+      parentId,
+      {
+        total: children.length,
+        done: children.filter((c) => c.done).length,
+      },
+    ]),
+  );
+
+  /*
+   * Work stream per card. One lookup for the streams actually referenced on
+   * this page rather than a join on every row — the list is short (a handful
+   * per workspace) and most boards use two or three of them.
+   */
+  const streamIds = [
+    ...new Set(
+      paginatedTasks
+        .map((t) => t.taskProjectId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const streams =
+    streamIds.length > 0
+      ? await db
+          .select({
+            id: taskProjectTable.id,
+            name: taskProjectTable.name,
+            color: taskProjectTable.color,
+          })
+          .from(taskProjectTable)
+          .where(inArray(taskProjectTable.id, streamIds))
+      : [];
+  const streamMap = new Map(streams.map((s) => [s.id, s]));
+
   const commentCountMap = new Map(
     commentCounts.map((r) => [r.taskId, Number(r.count)]),
   );
@@ -257,6 +373,13 @@ async function getTasks(projectId: string, options: GetTasksOptions = {}) {
     externalLinks: taskExternalLinksMap.get(task.id) || [],
     commentCount: commentCountMap.get(task.id) ?? 0,
     attachmentCount: attachmentCountMap.get(task.id) ?? 0,
+    subtaskTotal: subtaskCountMap.get(task.id)?.total ?? 0,
+    subtaskDone: subtaskCountMap.get(task.id)?.done ?? 0,
+    subtasks: subtaskListMap.get(task.id) ?? [],
+    parentTaskId: parentOf.get(task.id) ?? null,
+    taskProject: task.taskProjectId
+      ? (streamMap.get(task.taskProjectId) ?? null)
+      : null,
   });
 
   const projectColumns = await db

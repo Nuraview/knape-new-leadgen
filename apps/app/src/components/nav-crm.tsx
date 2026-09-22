@@ -28,7 +28,6 @@ import {
    * Administration used Settings, which is still imported for Pipeline settings.
    */
   Inbox,
-  KanbanSquare,
   LayoutGrid,
   type LucideIcon,
   Mail,
@@ -135,15 +134,18 @@ const LEADGEN_ITEMS: CrmNavItem[] = [
   // to keep it distinct from account/workspace settings.
   { title: "Pipeline settings", icon: Settings, to: "/pipeline-settings" },
   /*
-   * The cockpit's kanban board, not this app's own /board.
+   * There is no board under CRM any more.
    *
-   * /board reads NuraView's projects through /api/nvprojects and needs an
-   * NV_PROJECTS_PROJECT_ID this instance does not have — it is commented out
-   * below for exactly that reason. This one reads the cockpit's pm_* tables,
-   * which are shared with the client's other dashboard, so it shows the board
-   * that already has their cards on it.
+   * This instance carried three of them: this entry, reading the cockpit's
+   * pm_* tables through the leadgen proxy; /board, a redirect into NuraView's
+   * own shared project; and the real one under Business. Three nav items all
+   * called some variant of "Projects", each backed by a different database.
+   *
+   * VK asked on 2026-09-22 for the NuraView board itself, on Knape's own data,
+   * with Peter and two of his team on it. That is the Business one — labels,
+   * subtasks, backlog, gantt, the task sheet — so the other two are gone rather
+   * than left up to be picked by accident. See the Business group in nav-main.
    */
-  { title: "Projects", icon: KanbanSquare, to: "/projects" },
 ];
 
 const ITEMS: CrmNavItem[] = [
@@ -210,24 +212,6 @@ const ITEMS: CrmNavItem[] = [
    *   proposals, add invoices, and down below, orders and purchases".
    */
   // { title: "Orders", icon: Package, to: "/orders" },
-  /*
-   * Projects is not offered on this instance.
-   *
-   * It reads and writes NuraView's own board through /api/nvprojects, keyed by
-   * NV_PROJECTS_PROJECT_ID. That is unset here — there is no second dashboard
-   * to sync with — so every call answers 503 "NV_PROJECTS_PROJECT_ID is not
-   * configured". Note this is the CRM board, NOT the project-management nav
-   * group; that one is already hidden by BRAND_HIDE_PROJECTS.
-   *
-   * Set NV_PROJECTS_PROJECT_ID to restore it.
-   *
-   * Original reasoning, kept so it is not lost:
-   *   The shared project board. NOT a copy of NuraView's — the same rows, read
-   *   and written through /api/nvprojects, so a card moved on either dashboard
-   *   moves on both. VK, 2026-08-03: "if any updates made it should sync both
-   *   ways."
-   */
-  // { title: "Projects", icon: KanbanSquare, to: "/board" },
   /*
    * LinkedIn posts: drafted ahead of time, reviewed against a feed-accurate
    * preview, approved, then published at their scheduled time. Sits beside the
