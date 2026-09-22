@@ -28,6 +28,7 @@ import {
    * Administration used Settings, which is still imported for Pipeline settings.
    */
   Inbox,
+  KanbanSquare,
   LayoutGrid,
   type LucideIcon,
   Mail,
@@ -134,18 +135,23 @@ const LEADGEN_ITEMS: CrmNavItem[] = [
   // to keep it distinct from account/workspace settings.
   { title: "Pipeline settings", icon: Settings, to: "/pipeline-settings" },
   /*
-   * There is no board under CRM any more.
+   * The cockpit's kanban board. Kept, for now.
    *
-   * This instance carried three of them: this entry, reading the cockpit's
-   * pm_* tables through the leadgen proxy; /board, a redirect into NuraView's
-   * own shared project; and the real one under Business. Three nav items all
-   * called some variant of "Projects", each backed by a different database.
+   * VK asked on 2026-09-22 for NuraView's board instead — labels, subtasks,
+   * backlog, gantt, the task sheet — and that one lives under Business, on
+   * Knape's own tables. This entry is the old view onto the cockpit's pm_*
+   * tables, and it was removed in the same commit that added the new board.
    *
-   * VK asked on 2026-09-22 for the NuraView board itself, on Knape's own data,
-   * with Peter and two of his team on it. That is the Business one — labels,
-   * subtasks, backlog, gantt, the task sheet — so the other two are gone rather
-   * than left up to be picked by accident. See the Business group in nav-main.
+   * That was the wrong order. The new board is gated on BRAND_HIDE_PROJECTS,
+   * which is set per environment and was still `true` in production, so
+   * removing this one left the client with NO board at all and a 404 on the
+   * page they had open.
+   *
+   * It goes when the Business board is switched on and its cards have been
+   * moved across — not before. A replacement nobody can see yet is not a
+   * replacement.
    */
+  { title: "Projects", icon: KanbanSquare, to: "/projects" },
 ];
 
 const ITEMS: CrmNavItem[] = [
