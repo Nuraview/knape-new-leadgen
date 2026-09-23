@@ -252,7 +252,12 @@ def _account_table_where_clauses(
     """Shared list filters. ``contact_filter``: any | has | none. When ``industry`` is None, industry is not constrained.
     ``data_batch``: all (default) | latest (newest run) | original (pre-scrape leads only).
 
-    ``email_filter``: any | has | none — on a usable EMAIL ADDRESS, which is not
+    ``email_filter``: any | has | none | emailed | not_emailed. The first three
+    ask whether an ADDRESS EXISTS; the last two ask whether we have written to
+    it — "taken care of" in the list's own words — which is what a reviewer
+    deciding who still needs contacting is actually asking.
+
+    "has"/"none" are about a usable EMAIL ADDRESS, which is not
     the same question as ``contact_filter``. A contact row can exist with only a
     name and a job title; outreach cannot send to it. The list already reports
     both counts per account (contacts_count vs emails_count) and they diverge
@@ -294,8 +299,27 @@ def _account_table_where_clauses(
     elif cf == "none":
         where.append("NOT EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id)")
     ef = (email_filter or "any").strip().lower()
-    if ef not in ("any", "has", "none"):
+    if ef not in ("any", "has", "none", "emailed", "not_emailed"):
         ef = "any"
+    #: Companies we have actually written to — "taken care of".
+    #:
+    #: Deliberately NOT campaign_sender._ADDRESS_USED_SQL, which also counts
+    #: addresses in email_validation with ok=0. That set means "do not spend a
+    #: send on this", which is a different question from "has this company been
+    #: contacted": a never-emailed company with one dead address would have
+    #: shown as taken care of, and the reviewer would skip a live lead.
+    emailed_exists = (
+        "EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id "
+        "AND lower(trim(COALESCE(c.email, ''))) IN ("
+        "  SELECT lower(to_email) FROM email_sequences WHERE to_email IS NOT NULL"
+        "  UNION"
+        "  SELECT lower(to_email) FROM email_send_log WHERE to_email IS NOT NULL"
+        "))"
+    )
+    if ef == "emailed":
+        where.append(emailed_exists)
+    elif ef == "not_emailed":
+        where.append(f"NOT {emailed_exists}")
     if ef == "has":
         where.append(
             "EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id "

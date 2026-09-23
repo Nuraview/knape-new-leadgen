@@ -52,7 +52,16 @@ import { buildDayChips } from "@/lib/leadgen/day-batches";
 const PAGE_SIZE = 500;
 
 /** Cockpit `email_filter`: on a usable address, not on a contact row existing. */
-type EmailFilter = "any" | "has" | "none";
+/**
+ * The list's "who do I still need to write to?" filter.
+ *
+ * `has`/`none` ask whether an address EXISTS. `emailed`/`not_emailed` ask
+ * whether we have actually written to the company — what the team calls taken
+ * care of. Both live in one control because they are one question in practice:
+ * a reviewer picking the next company to contact wants the ones with an
+ * address that nobody has mailed yet.
+ */
+type EmailFilter = "any" | "has" | "none" | "emailed" | "not_emailed";
 
 /**
  * Cockpit `sort`.
@@ -335,12 +344,17 @@ function RouteComponent() {
               setEmailFilter(e.target.value as EmailFilter);
               resetToFirstPage();
             }}
-            aria-label="Filter by email address"
+            aria-label="Filter by email address or outreach status"
+            title="Has an email / No email yet ask whether we hold an address. Taken care of / Not contacted ask whether outreach has actually gone to this company."
             className="h-9 rounded-md border border-border bg-background px-2 text-sm sm:ms-auto"
           >
             <option value="any">All leads</option>
             <option value="has">Has an email</option>
             <option value="none">No email yet</option>
+            {/* Outreach status, grouped apart from the address questions above
+                so the two are not read as alternatives of the same thing. */}
+            <option value="emailed">Taken care of (emailed)</option>
+            <option value="not_emailed">Not contacted yet</option>
           </select>
 
           {/*
