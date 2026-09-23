@@ -1788,7 +1788,13 @@
     },
     "kanban": {
       "addTask": "Add task",
-      "addColumn": "Add column"
+      "addColumn": "Add column",
+      "renameColumn": "Rename column",
+      "setDoneColumn": "Set as done column",
+      "unsetDoneColumn": "Not the done column",
+      "deleteColumn": "Delete column",
+      "columnNotEmpty": "Move or archive the cards in this column before deleting it.",
+      "renameColumnHint": "Double-click to rename, or right-click for more"
     },
     "pr": {
       "merged": "Merged",
