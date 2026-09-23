@@ -220,11 +220,32 @@ export function getBrand(): Brand {
     // Opt-OUT rather than opt-in, so crmx1 keeps its Projects nav without
     // needing a new variable set on an already-running deployment.
     showProjectManagement: process.env.BRAND_HIDE_PROJECTS !== "true",
-    // Same opt-out shape, and deliberately a SEPARATE variable rather than a
-    // derivation of the one above: an instance that wants boards but not the
-    // vendor's timesheet has to be able to say so, and before this it could
-    // not. Unset on crmx1 leaves the clock exactly where it was.
-    showWorkClock: process.env.BRAND_HIDE_WORK_CLOCK !== "true",
+    /*
+     * The work clock and Today's Activity. VENDOR-ONLY unless asked for.
+     *
+     * Its own variable rather than a derivation of showProjectManagement: an
+     * instance that wants boards but not the vendor's timesheet has to be able
+     * to say so, and before this it could not.
+     *
+     * But NOT opt-out like its neighbour, and that distinction was learned the
+     * hard way. Shipped opt-out, this flag defaulted to VISIBLE, and splitting
+     * it away from BRAND_HIDE_PROJECTS therefore turned the clock ON for a
+     * client who had it correctly hidden and had never asked for it —
+     * "0h 00m / Start / Not tracking" at the top of Peter's own CRM, above his
+     * own company's nav, plus a Today's Activity panel counting calls and
+     * emails for a team that is not his. A white-label default that leaks a
+     * vendor surface by omission is the wrong default, however well documented.
+     *
+     * So: unset means vendor-only, the same rule vendorDetail applies to the
+     * signature's personal fields. An explicit "false" still turns it on for a
+     * client who wants it, and "true" still turns it off on crmx1.
+     */
+    showWorkClock: (() => {
+      const raw = process.env.BRAND_HIDE_WORK_CLOCK?.trim().toLowerCase();
+      if (raw === "true") return false;
+      if (raw === "false") return true;
+      return isVendor;
+    })(),
     signature: {
       // The person signing, so the fallback is the business — never whoever the
       // vendor's founder happens to be.
