@@ -28,7 +28,6 @@ import {
    * Administration used Settings, which is still imported for Pipeline settings.
    */
   Inbox,
-  KanbanSquare,
   LayoutGrid,
   type LucideIcon,
   Mail,
@@ -135,23 +134,22 @@ const LEADGEN_ITEMS: CrmNavItem[] = [
   // to keep it distinct from account/workspace settings.
   { title: "Pipeline settings", icon: Settings, to: "/pipeline-settings" },
   /*
-   * The cockpit's kanban board. Kept, for now.
+   * No board under CRM. There is one board now, under Business.
    *
-   * VK asked on 2026-09-22 for NuraView's board instead — labels, subtasks,
-   * backlog, gantt, the task sheet — and that one lives under Business, on
-   * Knape's own tables. This entry is the old view onto the cockpit's pm_*
-   * tables, and it was removed in the same commit that added the new board.
+   * This entry was the old view onto the cockpit's pm_* tables. It was removed
+   * once, too early — the new board is gated on BRAND_HIDE_PROJECTS, that was
+   * still `true` in production, and taking this one out left the client with
+   * no board at all. So it came back, and stayed until the replacement was
+   * real: BRAND_HIDE_PROJECTS=false, a "Project Management" board carrying
+   * Knape's own six columns, and the team assigned to it.
    *
-   * That was the wrong order. The new board is gated on BRAND_HIDE_PROJECTS,
-   * which is set per environment and was still `true` in production, so
-   * removing this one left the client with NO board at all and a 404 on the
-   * page they had open.
+   * Now it goes, because two nav items both called "Projects" over two
+   * different databases is its own kind of broken — the client clicked the one
+   * they had always clicked and saw the board they were trying to replace.
    *
-   * It goes when the Business board is switched on and its cards have been
-   * moved across — not before. A replacement nobody can see yet is not a
-   * replacement.
+   * The pm_* rows are untouched and still served by Knape's other dashboard;
+   * this removes a window onto them, not the data.
    */
-  { title: "Projects", icon: KanbanSquare, to: "/projects" },
 ];
 
 const ITEMS: CrmNavItem[] = [
