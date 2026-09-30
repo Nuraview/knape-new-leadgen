@@ -208,6 +208,7 @@ const META: SchedulerMeta = {
 type Json = Record<string, unknown>;
 
 const POSTS = /^linkedin\/posts\/([^/?]+)(?:\/([^/?]+))?/;
+const MEDIA = /^linkedin\/media\/(\d+)$/;
 
 /**
  * Serves one `api()` call from the cockpit.
@@ -270,6 +271,17 @@ export async function routeSocial<T>(
       .map(toPost);
 
     return { items } as T;
+  }
+
+  /*
+   * Removing a creative. The detail dialog names the media row alone, with no
+   * post in the path, so this has to be matched before POSTS or it falls
+   * through to "Scheduler route not available" — which is what Afla hit on 30
+   * Sep trying to take the wrong image off a "Changes needed" post.
+   */
+  const mediaMatch = MEDIA.exec(path);
+  if (mediaMatch && method === "DELETE") {
+    return (await leadgenSocial.removeMedia(Number(mediaMatch[1]))) as T;
   }
 
   /* ----------------------------------------------------- one post, and its
@@ -382,9 +394,4 @@ export async function uploadSocialCreative(
   file: File,
 ): Promise<void> {
   await leadgenSocial.uploadMedia(Number(postId), file);
-}
-
-/** Media removal, for the detail dialog's delete control. */
-export async function removeSocialCreative(mediaId: string): Promise<void> {
-  await leadgenSocial.removeMedia(Number(mediaId));
 }
