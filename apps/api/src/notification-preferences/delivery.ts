@@ -13,6 +13,7 @@ import {
 } from "../database/schema";
 import { assertPublicWebhookDestination } from "../plugins/generic-webhook/config";
 import { getBrand } from "../utils/get-brand";
+import { getInstanceMailSettings } from "./instance-mail";
 import { decryptSecret } from "./secrets";
 
 const DEFAULT_OUTBOUND_FETCH_TIMEOUT_MS = 15_000;
@@ -61,8 +62,12 @@ type DeliveryContent = {
   body: string;
 };
 
-function buildTaskUrl(workspaceId: string, projectId: string, taskId: string) {
-  const clientUrl = process.env.NURAVIEW_CLIENT_URL || "http://localhost:5173";
+function buildTaskUrl(
+  clientUrl: string,
+  workspaceId: string,
+  projectId: string,
+  taskId: string,
+) {
   return `${clientUrl}/dashboard/workspace/${workspaceId}/project/${projectId}/task/${taskId}`;
 }
 
@@ -219,10 +224,13 @@ function buildDeliveryContent(notification: {
   }
 }
 
-async function resolveNotificationContext(notification: {
-  resourceType: string | null;
-  resourceId: string | null;
-}): Promise<ResolvedNotificationContext | null> {
+async function resolveNotificationContext(
+  notification: {
+    resourceType: string | null;
+    resourceId: string | null;
+  },
+  clientUrl: string,
+): Promise<ResolvedNotificationContext | null> {
   if (!notification.resourceType || !notification.resourceId) {
     return null;
   }
@@ -257,7 +265,12 @@ async function resolveNotificationContext(notification: {
       projectName: task.projectName,
       taskId: task.taskId,
       taskTitle: task.taskTitle,
-      taskUrl: buildTaskUrl(task.workspaceId, task.projectId, task.taskId),
+      taskUrl: buildTaskUrl(
+        clientUrl,
+        task.workspaceId,
+        task.projectId,
+        task.taskId,
+      ),
     };
   }
 
@@ -407,7 +420,11 @@ export async function deliverNotification(
     return;
   }
 
-  const context = await resolveNotificationContext(notification);
+  const mail = await getInstanceMailSettings();
+  const context = await resolveNotificationContext(
+    notification,
+    mail.clientUrl,
+  );
   if (!context) {
     console.info("Notification delivery skipped: unresolved context", {
       notificationId,
@@ -522,13 +539,27 @@ export async function deliverNotification(
 
   if (decryptedPreference.emailEnabled && rule.emailEnabled && user.email) {
     deliveries.push(
-      sendNotificationEmail(user.email, content.title, {
-        title: content.title,
-        message: content.body,
-        actionUrl: context.taskUrl,
-        actionLabel: context.taskUrl ? `Open in ${brandName()}` : undefined,
-        locale: user.locale ?? null,
-      }).then(() => undefined),
+      sendNotificationEmail(
+        user.email,
+        content.title,
+        {
+          title: content.title,
+          message: content.body,
+          actionUrl: context.taskUrl,
+          actionLabel: context.taskUrl ? `Open in ${brandName()}` : undefined,
+          locale: user.locale ?? null,
+        },
+        mail.smtp,
+      ).then((result) => {
+        // The sender skips without throwing when no mail server is set. Say
+        // so, or the bell lights up and nobody can tell no email left.
+        if (!result.success) {
+          console.warn("Notification email not sent", {
+            notificationId,
+            reason: result.reason,
+          });
+        }
+      }),
     );
   }
 

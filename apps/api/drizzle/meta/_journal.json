@@ -358,6 +358,13 @@
       "when": 1784374652890,
       "tag": "0050_task_project",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1784374653890,
+      "tag": "0051_instance_setting",
+      "breakpoints": true
     }
   ]
 }

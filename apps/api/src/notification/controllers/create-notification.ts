@@ -1,4 +1,5 @@
 import { createId } from "@paralleldrive/cuid2";
+import { waitUntil } from "@vercel/functions";
 import { eq } from "drizzle-orm";
 import db from "../../database";
 import { notificationTable, userTable } from "../../database/schema";
@@ -70,12 +71,20 @@ async function createNotification({
       notificationId: notification.id,
       userId,
     });
-    void deliverNotification(notification.id).catch((error) => {
-      console.error("Failed to deliver notification", {
-        notificationId: notification.id,
-        error,
-      });
-    });
+    /*
+     * Not awaited, so a slow mail server never holds up the comment, but
+     * handed to waitUntil: on Vercel the function is frozen once the response
+     * is sent, and a bare floating promise there can die mid-send. Off Vercel
+     * waitUntil is a no-op and the promise simply runs.
+     */
+    waitUntil(
+      deliverNotification(notification.id).catch((error) => {
+        console.error("Failed to deliver notification", {
+          notificationId: notification.id,
+          error,
+        });
+      }),
+    );
 
     /*
      * Mirror to the recipient's WhatsApp (meeting 2026-07-30: "the moment a
@@ -87,7 +96,7 @@ async function createNotification({
      * employee whose email is not in WHATSAPP_EMPLOYEE_NUMBERS simply gets
      * nothing, so rollout is per-person as VK hands numbers over.
      */
-    void mirrorToWhatsapp(userId, type, eventData).catch(() => {});
+    waitUntil(mirrorToWhatsapp(userId, type, eventData).catch(() => {}));
   }
 
   return notification;

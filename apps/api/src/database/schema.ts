@@ -841,6 +841,22 @@ export const githubIntegrationTable = pgTable("github_integration", {
     .notNull(),
 });
 
+/**
+ * Instance-wide settings, one JSON value per key. Lets an operator configure
+ * the instance from its database, which they can always reach, when the host's
+ * environment is in someone else's account. Environment variables still win
+ * where both are set. Keys in use: "smtp", "app_url" (see
+ * notification-preferences/instance-mail.ts).
+ */
+export const instanceSettingTable = pgTable("instance_setting", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 export const integrationTable = pgTable(
   "integration",
   {

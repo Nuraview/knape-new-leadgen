@@ -114,19 +114,44 @@ export const sendWorkspaceInvitationEmail = async (
   }
 };
 
+/**
+ * An SMTP server handed in by the caller, for an instance whose mail settings
+ * live in its database instead of in SMTP_* (see the API's instance_setting
+ * table). SMTP_* still wins when it is set.
+ */
+export type SmtpSettings = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  password: string;
+  from: string;
+};
+
 export const sendNotificationEmail = async (
   to: string,
   subject: string,
   data: NotificationEmailProps,
+  smtp?: SmtpSettings | null,
 ): Promise<EmailResult> => {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_FROM) {
+  const useEnv = Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
+  if (!useEnv && !smtp) {
     return { success: false, reason: "SMTP_NOT_CONFIGURED" };
   }
 
   try {
     const emailTemplate = await render(NotificationEmail(data));
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
+    const mailer =
+      useEnv || !smtp
+        ? transporter
+        : nodemailer.createTransport({
+            host: smtp.host,
+            port: smtp.port,
+            secure: smtp.secure,
+            auth: { user: smtp.user, pass: smtp.password },
+          });
+    await mailer.sendMail({
+      from: useEnv || !smtp ? process.env.SMTP_FROM : smtp.from,
       to,
       subject,
       html: emailTemplate,

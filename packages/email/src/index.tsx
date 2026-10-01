@@ -1,3 +1,4 @@
+export type { SmtpSettings } from "./send-email";
 export {
   sendMagicLinkEmail,
   sendNotificationEmail,
