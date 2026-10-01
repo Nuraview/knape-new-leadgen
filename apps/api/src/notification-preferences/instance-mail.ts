@@ -8,11 +8,17 @@ import { decryptSecret } from "./secrets";
  * Where notification emails go out from, and where their "Open task" button
  * points.
  *
- * Both normally come from the environment (SMTP_*, NURAVIEW_CLIENT_URL). The
- * instance_setting table is the fallback for an instance whose environment the
- * operator cannot edit: Knape's runs on a Vercel project in another account,
- * and for weeks every @mention lit the bell and sent no email, because SMTP_*
- * was never set there and the sender skips silently when it is missing.
+ * The mail server normally comes from SMTP_*. The instance_setting table is
+ * the fallback for an instance whose environment the operator cannot edit:
+ * Knape's runs on a Vercel project in another account, and for weeks every
+ * @mention lit the bell and sent no email, because SMTP_* was never set there
+ * and the sender skips silently when it is missing.
+ *
+ * The link is the other way round: a saved "app_url" beats
+ * NURAVIEW_CLIENT_URL. Knape's environment still names the project's
+ * *.vercel.app address from before crm.knapesolutions.com was attached, and a
+ * link there opens a login page, because the session cookie belongs to the
+ * custom domain.
  */
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
@@ -74,8 +80,8 @@ export async function getInstanceMailSettings(): Promise<{
   return {
     smtp: toSmtpSettings(setting("smtp")),
     clientUrl:
-      usableUrl(process.env.NURAVIEW_CLIENT_URL) ??
       usableUrl(setting("app_url")) ??
+      usableUrl(process.env.NURAVIEW_CLIENT_URL) ??
       usableUrl(vercelUrl) ??
       "http://localhost:5173",
   };
