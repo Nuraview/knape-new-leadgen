@@ -32,6 +32,7 @@ import { Route as LayoutAuthenticatedDashboardRouteImport } from './routes/_layo
 import { Route as LayoutAuthenticatedDialerRouteImport } from './routes/_layout/_authenticated/dialer'
 import { Route as LayoutAuthenticatedEmailsRouteImport } from './routes/_layout/_authenticated/emails'
 import { Route as LayoutAuthenticatedEmployeesRouteImport } from './routes/_layout/_authenticated/employees'
+import { Route as LayoutAuthenticatedEventsRouteImport } from './routes/_layout/_authenticated/events'
 import { Route as LayoutAuthenticatedFinderRouteImport } from './routes/_layout/_authenticated/finder'
 import { Route as LayoutAuthenticatedHomeRouteImport } from './routes/_layout/_authenticated/home'
 import { Route as LayoutAuthenticatedInboundRouteImport } from './routes/_layout/_authenticated/inbound'
@@ -201,6 +202,12 @@ const LayoutAuthenticatedEmployeesRoute =
   LayoutAuthenticatedEmployeesRouteImport.update({
     id: '/employees',
     path: '/employees',
+    getParentRoute: () => LayoutAuthenticatedRoute,
+  } as any)
+const LayoutAuthenticatedEventsRoute =
+  LayoutAuthenticatedEventsRouteImport.update({
+    id: '/events',
+    path: '/events',
     getParentRoute: () => LayoutAuthenticatedRoute,
   } as any)
 const LayoutAuthenticatedFinderRoute =
@@ -545,6 +552,7 @@ export interface FileRoutesByFullPath {
   '/dialer': typeof LayoutAuthenticatedDialerRoute
   '/emails': typeof LayoutAuthenticatedEmailsRoute
   '/employees': typeof LayoutAuthenticatedEmployeesRoute
+  '/events': typeof LayoutAuthenticatedEventsRoute
   '/finder': typeof LayoutAuthenticatedFinderRoute
   '/home': typeof LayoutAuthenticatedHomeRoute
   '/inbound': typeof LayoutAuthenticatedInboundRoute
@@ -616,6 +624,7 @@ export interface FileRoutesByTo {
   '/dialer': typeof LayoutAuthenticatedDialerRoute
   '/emails': typeof LayoutAuthenticatedEmailsRoute
   '/employees': typeof LayoutAuthenticatedEmployeesRoute
+  '/events': typeof LayoutAuthenticatedEventsRoute
   '/finder': typeof LayoutAuthenticatedFinderRoute
   '/home': typeof LayoutAuthenticatedHomeRoute
   '/inbound': typeof LayoutAuthenticatedInboundRoute
@@ -691,6 +700,7 @@ export interface FileRoutesById {
   '/_layout/_authenticated/dialer': typeof LayoutAuthenticatedDialerRoute
   '/_layout/_authenticated/emails': typeof LayoutAuthenticatedEmailsRoute
   '/_layout/_authenticated/employees': typeof LayoutAuthenticatedEmployeesRoute
+  '/_layout/_authenticated/events': typeof LayoutAuthenticatedEventsRoute
   '/_layout/_authenticated/finder': typeof LayoutAuthenticatedFinderRoute
   '/_layout/_authenticated/home': typeof LayoutAuthenticatedHomeRoute
   '/_layout/_authenticated/inbound': typeof LayoutAuthenticatedInboundRoute
@@ -766,6 +776,7 @@ export interface FileRouteTypes {
     | '/dialer'
     | '/emails'
     | '/employees'
+    | '/events'
     | '/finder'
     | '/home'
     | '/inbound'
@@ -837,6 +848,7 @@ export interface FileRouteTypes {
     | '/dialer'
     | '/emails'
     | '/employees'
+    | '/events'
     | '/finder'
     | '/home'
     | '/inbound'
@@ -911,6 +923,7 @@ export interface FileRouteTypes {
     | '/_layout/_authenticated/dialer'
     | '/_layout/_authenticated/emails'
     | '/_layout/_authenticated/employees'
+    | '/_layout/_authenticated/events'
     | '/_layout/_authenticated/finder'
     | '/_layout/_authenticated/home'
     | '/_layout/_authenticated/inbound'
@@ -1139,6 +1152,13 @@ declare module '@tanstack/react-router' {
       path: '/employees'
       fullPath: '/employees'
       preLoaderRoute: typeof LayoutAuthenticatedEmployeesRouteImport
+      parentRoute: typeof LayoutAuthenticatedRoute
+    }
+    '/_layout/_authenticated/events': {
+      id: '/_layout/_authenticated/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof LayoutAuthenticatedEventsRouteImport
       parentRoute: typeof LayoutAuthenticatedRoute
     }
     '/_layout/_authenticated/finder': {
@@ -1655,6 +1675,7 @@ interface LayoutAuthenticatedRouteChildren {
   LayoutAuthenticatedDialerRoute: typeof LayoutAuthenticatedDialerRoute
   LayoutAuthenticatedEmailsRoute: typeof LayoutAuthenticatedEmailsRoute
   LayoutAuthenticatedEmployeesRoute: typeof LayoutAuthenticatedEmployeesRoute
+  LayoutAuthenticatedEventsRoute: typeof LayoutAuthenticatedEventsRoute
   LayoutAuthenticatedFinderRoute: typeof LayoutAuthenticatedFinderRoute
   LayoutAuthenticatedHomeRoute: typeof LayoutAuthenticatedHomeRoute
   LayoutAuthenticatedInboundRoute: typeof LayoutAuthenticatedInboundRoute
@@ -1687,6 +1708,7 @@ const LayoutAuthenticatedRouteChildren: LayoutAuthenticatedRouteChildren = {
   LayoutAuthenticatedDialerRoute: LayoutAuthenticatedDialerRoute,
   LayoutAuthenticatedEmailsRoute: LayoutAuthenticatedEmailsRoute,
   LayoutAuthenticatedEmployeesRoute: LayoutAuthenticatedEmployeesRoute,
+  LayoutAuthenticatedEventsRoute: LayoutAuthenticatedEventsRoute,
   LayoutAuthenticatedFinderRoute: LayoutAuthenticatedFinderRoute,
   LayoutAuthenticatedHomeRoute: LayoutAuthenticatedHomeRoute,
   LayoutAuthenticatedInboundRoute: LayoutAuthenticatedInboundRoute,

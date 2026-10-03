@@ -17,6 +17,7 @@ import { useMyAccess } from "@/hooks/queries/use-my-access";
 import useGetConfig from "@/hooks/queries/config/use-get-config";
 import {
   CalendarClock,
+  CalendarDays,
   ChevronRight,
   /*
    * Icons for the entries commented out below — re-import each alongside the
@@ -96,6 +97,9 @@ const LEADGEN_ITEMS: CrmNavItem[] = [
   // the machine; this one says whether the machine is working.
   { title: "Home", icon: Home, to: "/home" },
   { title: "Leads", icon: Inbox, to: "/pipeline" },
+  // Trade-show lead pools (WEFTEC, WorkBoat, …), kept apart from the main
+  // pipeline. Sits by Leads because it is the same job on a different source.
+  { title: "Events", icon: CalendarDays, to: "/events" },
   { title: "Inbound", icon: Inbox, to: "/inbound" },
   { title: "Live Finder", icon: Radar, to: "/finder" },
   { title: "Outreach", icon: Send, to: "/emails" },

@@ -1897,6 +1897,63 @@ def list_accounts(
         conn.close()
 
 
+def _event_display_name(slug: str) -> str:
+    """Turn an event slug into a readable name: weftec-2026 -> 'WEFTEC 2026'."""
+    special = {"weftec": "WEFTEC", "workboat": "WorkBoat", "ift": "IFT", "bioprocess": "BioProcess"}
+    parts = [p for p in slug.strip().split("-") if p]
+    if not parts:
+        return slug
+    return " ".join(special.get(p.lower(), p if p.isdigit() else p.capitalize()) for p in parts)
+
+
+@app.get("/api/events")
+def list_event_pools(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+    """Event lead pools (WEFTEC, WorkBoat, …) with counts, for the Events section.
+
+    A pool is every account tagged ``lead_source_bucket = 'event:<slug>'``. Rows
+    are counted raw, with no ICP gate, so a freshly collected roster that has not
+    been enriched yet still shows its true size.
+    """
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                lower(COALESCE(lead_source_bucket,'')) AS bucket,
+                COUNT(*) AS total,
+                SUM(CASE WHEN EXISTS (SELECT 1 FROM contacts c WHERE c.account_id = accounts.id)
+                         THEN 1 ELSE 0 END) AS with_contacts,
+                SUM(CASE WHEN EXISTS (SELECT 1 FROM contacts c
+                         WHERE c.account_id = accounts.id AND trim(COALESCE(c.email,'')) <> '')
+                         THEN 1 ELSE 0 END) AS with_email,
+                SUM(CASE WHEN COALESCE(website,'') <> '' THEN 1 ELSE 0 END) AS with_website
+            FROM accounts
+            WHERE lower(COALESCE(lead_source_bucket,'')) LIKE 'event:%'
+            GROUP BY bucket
+            ORDER BY total DESC
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+    pools: list[dict[str, Any]] = []
+    for r in rows:
+        bucket = str(r["bucket"] or "")
+        slug = bucket.split("event:", 1)[1] if bucket.startswith("event:") else bucket
+        pools.append(
+            {
+                "bucket": bucket,
+                "slug": slug,
+                "data_batch": slug,
+                "name": _event_display_name(slug),
+                "total": int(r["total"] or 0),
+                "with_contacts": int(r["with_contacts"] or 0),
+                "with_email": int(r["with_email"] or 0),
+                "with_website": int(r["with_website"] or 0),
+            }
+        )
+    return {"pools": pools}
+
+
 @app.get("/api/pipeline/batches")
 def list_batches(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
     """Distinct ``data_batch`` labels with counts, for the dashboard date filter.
