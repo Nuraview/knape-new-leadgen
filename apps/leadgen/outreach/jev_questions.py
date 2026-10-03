@@ -26,7 +26,7 @@ from typing import Any
 
 from outreach.jev_llm import choice, noul, score
 
-RUBRIC_VERSION = "knape-airmove-v1"
+RUBRIC_VERSION = "knape-airmove-v2"
 
 KNAPE_ICP: dict[str, Any] = {
     # The market/application the company operates in (ICP-01).
@@ -41,6 +41,7 @@ KNAPE_ICP: dict[str, Any] = {
         "commercial_kitchen": "Restaurants and institutional/industrial kitchens (exhaust, make-up air).",
         "tunnel_ehouse": "Tunnel ventilation, e-houses, enclosures.",
         "oem": "OEMs building machines/products that need a ventilation or air-moving component.",
+        "carbon_capture": "Carbon capture / emissions-control facilities needing specialized air handling.",
         "other": "No Knape target application fits the evidence.",
     },
     # Who the company is to Knape (new dimension, drives buyer mapping).
@@ -113,6 +114,24 @@ KNAPE_ICP: dict[str, Any] = {
         "A staffing, recruiting or marketing agency.",
         "An organization with no plausible air-movement, ventilation, heating or dust-control need.",
     ],
+    # How the company relates to Knape, which decides whether to prospect it.
+    "relationships": {
+        "end_customer": "A buyer/operator/engineer/contractor that would purchase through Knape (TARGET).",
+        "oem_target": "An OEM/machine builder needing air-moving components (TARGET).",
+        "partner_manufacturer": "A manufacturer Knape already represents or distributes (PARTNER, not a prospect).",
+        "competitor": "A competing air-movement equipment rep/distributor, or a maker of competing fans/blowers/dampers/heaters.",
+        "other": "None of these / unclear.",
+    },
+    # The manufacturers Knape represents. Matched in CODE (exact/normalized),
+    # not by Jev, so a known partner is never prospected as a customer.
+    "known_manufacturers": [
+        "American Warming & Ventilating", "AbsolutAire", "Aprilaire", "Barry Blowers",
+        "Soler & Palau", "Tuttle & Bailey", "CaptiveAire", "USAIRE", "SEIHO",
+        "Delta Breez", "Halton", "Hartzell Air Movement", "Indeeco", "Sterling HVAC",
+        "United Enertech", "Flexable Specialty Products", "Woodcock & Wilson",
+        "Industrial Air Technology", "Loren Cook", "QMark", "Rotork", "Schischek",
+        "Woods Air Movement", "Acudor", "INTEC", "Pottorff", "Fan Equipment Co.",
+    ],
     "fit_bands": ["Poor", "Weak", "Good", "Excellent"],
     "strength_bands": ["None", "Weak", "Moderate", "Strong"],
     "proximity_bands": ["None", "Distant", "Involved", "Owns decision"],
@@ -153,6 +172,13 @@ def target_filter_questions(icp: dict[str, Any] | None = None) -> dict[str, Any]
             "Is this a company Knape Associates could sell industrial air-movement, "
             "ventilation, heating or dust-control equipment or engineering/sourcing "
             f"services to? Exclude: {_disq_text(icp)}"
+        ),
+        "relationship": choice(
+            "How does this company relate to an air-movement equipment rep like Knape? "
+            "An equipment BUYER/operator/engineer/contractor is an end_customer; an OEM "
+            "needing components is oem_target; a maker of competing air-moving equipment "
+            "is a competitor.",
+            icp["relationships"],
         ),
     }
 

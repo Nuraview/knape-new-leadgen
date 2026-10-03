@@ -19,6 +19,7 @@ from config import JEV_MODEL
 from outreach import cockpit_api as C
 from outreach import jev_llm as J
 from outreach import jev_questions as Q
+from utils.exclusions import normalize_company_key
 
 
 def _f(name: str, default: float) -> float:
@@ -44,6 +45,19 @@ TARGET_DROP = _f("JEV_TARGET_DROP", 0.30)
 PRIORITY_AUTO = _f("JEV_PRIORITY_AUTO", 70.0)
 PRIORITY_NURTURE = _f("JEV_PRIORITY_NURTURE", 40.0)
 
+_PARTNER_KEYS = {normalize_company_key(m) for m in Q.load_icp().get("known_manufacturers", [])}
+
+
+def partner_match(company_name: str) -> bool:
+    """True if the company IS one of Knape's repped manufacturers (a PARTNER).
+
+    Exact/normalized match in CODE, not Jev: a known partner must never be
+    prospected as a customer, and this is an identity question, not a judgment.
+    """
+    key = normalize_company_key(company_name or "")
+    return bool(key) and key in _PARTNER_KEYS
+
+
 _MATURITY_N = {"enterprise": 1.0, "mid_market": 0.8, "small": 0.4, "unknown": 0.3}
 
 
@@ -57,12 +71,18 @@ def _band_norm(val: float, bands: int = 4) -> float:
 # --- cheap target filter (run before paid enrichment) ------------------------
 def classify_target(state: dict[str, Any]) -> dict[str, Any]:
     """Run the pre-enrichment filter over a state. Returns verdict + fields."""
+    name = (state.get("company") or {}).get("name", "")
     ans = J.jev_decide(state=state, questions=Q.target_filter_questions())
     p = J.noul_prob(ans, "is_target")
-    verdict = "pass" if p >= TARGET_ACCEPT else ("drop" if p < TARGET_DROP else "review")
+    rel = "partner_manufacturer" if partner_match(name) else J.choice_value(ans, "relationship")
+    if rel in ("partner_manufacturer", "competitor"):
+        verdict = "drop"  # never prospect a partner or a competitor
+    else:
+        verdict = "pass" if p >= TARGET_ACCEPT else ("drop" if p < TARGET_DROP else "review")
     return {
         "application": J.choice_value(ans, "application"),
         "is_target": p,
+        "relationship": rel,
         "verdict": verdict,
         "answers": ans,
     }
@@ -80,6 +100,8 @@ def target_filter_account(account_id: int) -> dict[str, Any]:
                          source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=JEV_MODEL)
     C.save_lead_semantic(account_id, "is_target", round(res["is_target"], 4),
                          confidence=abs(res["is_target"] - 0.5) * 2.0,
+                         source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=JEV_MODEL)
+    C.save_lead_semantic(account_id, "relationship", res.get("relationship", ""),
                          source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=JEV_MODEL)
     return res
 
@@ -105,6 +127,16 @@ def semantic_enrich_account(account_id: int) -> dict[str, Any]:
         return {"ok": False, "reason": "no account"}
     if not (state.get("evidence") or "").strip():
         return {"ok": False, "reason": "no evidence text (capture pages first)"}
+
+    name = (state.get("company") or {}).get("name", "")
+    if partner_match(name):
+        src = (state.get("company") or {}).get("website") or ""
+        C.save_lead_semantic(account_id, "relationship", "partner_manufacturer",
+                             source_url=src, extractor="code", rubric_version=Q.RUBRIC_VERSION)
+        C.set_account_jev_summary(account_id, outreach_route="suppress",
+                                  review_state="partner_not_prospect", rubric_version=Q.RUBRIC_VERSION)
+        return {"ok": True, "account_id": account_id, "route": "suppress",
+                "review_state": "partner_not_prospect", "relationship": "partner_manufacturer"}
 
     ans = J.jev_decide(state=state, questions=Q.website_icp_questions())
     src = (state.get("company") or {}).get("website") or ""
