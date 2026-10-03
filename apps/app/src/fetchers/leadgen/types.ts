@@ -14,55 +14,71 @@
  */
 
 export type Account = {
-  id: number;
-  company: string;
-  website: string;
-  industry: string;
-  /** "City, ST" — schools and coalitions. */
-  location?: string;
-  /** School enrollment, stored in the legacy headcount column. */
-  headcount?: string;
-  score: number;
-  signal_category: string;
-  signal_evidence: string;
-  equipment_needs: string;
-  company_profile: string;
-  lead_source_bucket: string;
-  fresh_signal: number;
-  /** Serialised ICP factor scores, rendered as the radar chart. */
-  swot_json?: string;
-  signal_url?: string | null;
-  /** When this lead was found: a scrape date "YYYY-MM-DD", "original", or "". */
-  data_batch?: string;
-  contacts_count?: number;
-  emails_count?: number;
-  /**
-   * The client's own 0–10 verdict, null when nobody has rated this company.
-   *
-   * Deliberately NOT the ICP score: `score` is what the model inferred from the
-   * research, this is what the person who knows the business says. Null and 0
-   * are different claims — "not looked at yet" versus "useless" — which is why
-   * this is nullable rather than defaulting to 0.
-   */
-  client_rating?: number | null;
+	id: number;
+	company: string;
+	website: string;
+	industry: string;
+	/** "City, ST" — schools and coalitions. */
+	location?: string;
+	/** School enrollment, stored in the legacy headcount column. */
+	headcount?: string;
+	score: number;
+	signal_category: string;
+	signal_evidence: string;
+	equipment_needs: string;
+	company_profile: string;
+	lead_source_bucket: string;
+	fresh_signal: number;
+	/** Serialised ICP factor scores, rendered as the radar chart. */
+	swot_json?: string;
+	signal_url?: string | null;
+	/** When this lead was found: a scrape date "YYYY-MM-DD", "original", or "". */
+	data_batch?: string;
+	contacts_count?: number;
+	emails_count?: number;
+	/**
+	 * Trade-show tier for the Events table: the authoritative accounts.tier when
+	 * set, otherwise a bucket the cockpit derives from the ICP score, so a chip
+	 * is never blank. One of the keys in lib/events/registry.ts (T0-HOT, …).
+	 */
+	tier?: string;
+	/** Trade-show segment (OEM, Integrator, …), shown under the company name. */
+	segment?: string;
+	/**
+	 * The client's own 0–10 verdict, null when nobody has rated this company.
+	 *
+	 * Deliberately NOT the ICP score: `score` is what the model inferred from the
+	 * research, this is what the person who knows the business says. Null and 0
+	 * are different claims — "not looked at yet" versus "useless" — which is why
+	 * this is nullable rather than defaulting to 0.
+	 */
+	client_rating?: number | null;
 };
 
 export type Person = {
-  id: number;
-  /** The school this person belongs to, so a row can reach its lead. */
-  account_id?: number;
-  person_name: string;
-  job_title: string;
-  email: string;
-  linkedin_url?: string;
-  source_kind: string;
-  confidence: number;
-  company: string;
-  industry?: string;
-  score?: number;
-  website?: string;
-  signal_evidence?: string;
-  signal_url?: string | null;
+	id: number;
+	/** The school this person belongs to, so a row can reach its lead. */
+	account_id?: number;
+	person_name: string;
+	job_title: string;
+	email: string;
+	phone?: string;
+	linkedin_url?: string;
+	source_kind: string;
+	confidence: number;
+	company: string;
+	industry?: string;
+	score?: number;
+	website?: string;
+	signal_evidence?: string;
+	signal_url?: string | null;
+	/** Trade-show fields, mirrored from the account (see Account.tier). */
+	tier?: string;
+	segment?: string;
+	/** Who scanned or sourced this contact at the show. */
+	captured_by?: string;
+	/** 1 when the person was also at the prior year's show. */
+	repeat_attendee?: number;
 };
 
 /**
@@ -75,17 +91,43 @@ export type Person = {
  * pager from this, not from the requested page.
  */
 export type PageEnvelope = {
-  total: number;
-  /** 1-based, and authoritative — the server may have clamped it. */
-  page: number;
-  page_size: number;
-  pages: number;
+	total: number;
+	/** 1-based, and authoritative — the server may have clamped it. */
+	page: number;
+	page_size: number;
+	pages: number;
 };
+
+/**
+ * One trade-show pool from GET /api/events: every account tagged
+ * lead_source_bucket = "event:<slug>", counted raw with no ICP gate. `tiers`
+ * maps an effective-tier key (see lib/events/registry.ts) to its count across
+ * the whole pool, which is what the detail toolbar's tier chips report, not a
+ * count of one loaded page.
+ *
+ * `with_linkedin` and `tiers` are optional: a cockpit that has not been
+ * redeployed with the Events changes omits them, and the UI just shows no tier
+ * chips until it has.
+ */
+export type EventPool = {
+	bucket: string;
+	slug: string;
+	data_batch: string;
+	name: string;
+	total: number;
+	with_contacts: number;
+	with_email: number;
+	with_website: number;
+	with_linkedin?: number;
+	tiers?: Record<string, number>;
+};
+
+export type EventsResponse = { pools: EventPool[] };
 
 /** GET /api/accounts — the shape depends on the `mode` parameter. */
 export type AccountsResponse =
-  | ({ mode: "accounts"; items: Account[] } & PageEnvelope)
-  | ({ mode: "people"; items: Person[] } & PageEnvelope);
+	| ({ mode: "accounts"; items: Account[] } & PageEnvelope)
+	| ({ mode: "people"; items: Person[] } & PageEnvelope);
 
 /**
  * One entry in the scrape-date filter, from GET /api/pipeline/batches.
@@ -96,25 +138,25 @@ export type AccountsResponse =
  * computed from these values rather than requiring a new endpoint.
  */
 export type BatchOption = {
-  /** "" | "original" | "2026-06-24" */
-  value: string;
-  label: string;
-  count: number;
-  kind: "date" | "original" | "unknown";
+	/** "" | "original" | "2026-06-24" */
+	value: string;
+	label: string;
+	count: number;
+	kind: "date" | "original" | "unknown";
 };
 
 export type SampleLead = {
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  school: string;
-  role: string;
-  students_count: string;
-  school_type: string;
-  notes: string;
-  grant_interest: boolean;
-  source: string;
-  /** Unix seconds. */
-  created_at: number;
+	id: number;
+	name: string;
+	email: string;
+	phone: string;
+	school: string;
+	role: string;
+	students_count: string;
+	school_type: string;
+	notes: string;
+	grant_interest: boolean;
+	source: string;
+	/** Unix seconds. */
+	created_at: number;
 };

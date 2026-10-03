@@ -55,6 +55,7 @@ import { Route as STTaskIdRouteImport } from './routes/s.t.$taskId'
 import { Route as LayoutAuthenticatedDashboardIndexRouteImport } from './routes/_layout/_authenticated/dashboard/index'
 import { Route as LayoutAuthenticatedDashboardInvitationsRouteImport } from './routes/_layout/_authenticated/dashboard/invitations'
 import { Route as LayoutAuthenticatedDashboardSettingsRouteImport } from './routes/_layout/_authenticated/dashboard/settings'
+import { Route as LayoutAuthenticatedEventsSlugRouteImport } from './routes/_layout/_authenticated/events_.$slug'
 import { Route as LayoutAuthenticatedLeadsKanbanRouteImport } from './routes/_layout/_authenticated/leads_.kanban'
 import { Route as LayoutAuthenticatedMarketingComposeRouteImport } from './routes/_layout/_authenticated/marketing_.compose'
 import { Route as LayoutAuthenticatedPipelineAccountIdRouteImport } from './routes/_layout/_authenticated/pipeline_.$accountId'
@@ -338,6 +339,12 @@ const LayoutAuthenticatedDashboardSettingsRoute =
     path: '/settings',
     getParentRoute: () => LayoutAuthenticatedDashboardRoute,
   } as any)
+const LayoutAuthenticatedEventsSlugRoute =
+  LayoutAuthenticatedEventsSlugRouteImport.update({
+    id: '/events_/$slug',
+    path: '/events/$slug',
+    getParentRoute: () => LayoutAuthenticatedRoute,
+  } as any)
 const LayoutAuthenticatedLeadsKanbanRoute =
   LayoutAuthenticatedLeadsKanbanRouteImport.update({
     id: '/leads_/kanban',
@@ -574,6 +581,7 @@ export interface FileRoutesByFullPath {
   '/s/t/$taskId': typeof STTaskIdRoute
   '/dashboard/invitations': typeof LayoutAuthenticatedDashboardInvitationsRoute
   '/dashboard/settings': typeof LayoutAuthenticatedDashboardSettingsRouteWithChildren
+  '/events/$slug': typeof LayoutAuthenticatedEventsSlugRoute
   '/leads/kanban': typeof LayoutAuthenticatedLeadsKanbanRoute
   '/marketing/compose': typeof LayoutAuthenticatedMarketingComposeRoute
   '/pipeline/$accountId': typeof LayoutAuthenticatedPipelineAccountIdRoute
@@ -646,6 +654,7 @@ export interface FileRoutesByTo {
   '/s/t/$taskId': typeof STTaskIdRoute
   '/dashboard/invitations': typeof LayoutAuthenticatedDashboardInvitationsRoute
   '/dashboard/settings': typeof LayoutAuthenticatedDashboardSettingsRouteWithChildren
+  '/events/$slug': typeof LayoutAuthenticatedEventsSlugRoute
   '/leads/kanban': typeof LayoutAuthenticatedLeadsKanbanRoute
   '/marketing/compose': typeof LayoutAuthenticatedMarketingComposeRoute
   '/pipeline/$accountId': typeof LayoutAuthenticatedPipelineAccountIdRoute
@@ -722,6 +731,7 @@ export interface FileRoutesById {
   '/s/t/$taskId': typeof STTaskIdRoute
   '/_layout/_authenticated/dashboard/invitations': typeof LayoutAuthenticatedDashboardInvitationsRoute
   '/_layout/_authenticated/dashboard/settings': typeof LayoutAuthenticatedDashboardSettingsRouteWithChildren
+  '/_layout/_authenticated/events_/$slug': typeof LayoutAuthenticatedEventsSlugRoute
   '/_layout/_authenticated/leads_/kanban': typeof LayoutAuthenticatedLeadsKanbanRoute
   '/_layout/_authenticated/marketing_/compose': typeof LayoutAuthenticatedMarketingComposeRoute
   '/_layout/_authenticated/pipeline_/$accountId': typeof LayoutAuthenticatedPipelineAccountIdRoute
@@ -798,6 +808,7 @@ export interface FileRouteTypes {
     | '/s/t/$taskId'
     | '/dashboard/invitations'
     | '/dashboard/settings'
+    | '/events/$slug'
     | '/leads/kanban'
     | '/marketing/compose'
     | '/pipeline/$accountId'
@@ -870,6 +881,7 @@ export interface FileRouteTypes {
     | '/s/t/$taskId'
     | '/dashboard/invitations'
     | '/dashboard/settings'
+    | '/events/$slug'
     | '/leads/kanban'
     | '/marketing/compose'
     | '/pipeline/$accountId'
@@ -945,6 +957,7 @@ export interface FileRouteTypes {
     | '/s/t/$taskId'
     | '/_layout/_authenticated/dashboard/invitations'
     | '/_layout/_authenticated/dashboard/settings'
+    | '/_layout/_authenticated/events_/$slug'
     | '/_layout/_authenticated/leads_/kanban'
     | '/_layout/_authenticated/marketing_/compose'
     | '/_layout/_authenticated/pipeline_/$accountId'
@@ -1314,6 +1327,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/settings'
       preLoaderRoute: typeof LayoutAuthenticatedDashboardSettingsRouteImport
       parentRoute: typeof LayoutAuthenticatedDashboardRoute
+    }
+    '/_layout/_authenticated/events_/$slug': {
+      id: '/_layout/_authenticated/events_/$slug'
+      path: '/events/$slug'
+      fullPath: '/events/$slug'
+      preLoaderRoute: typeof LayoutAuthenticatedEventsSlugRouteImport
+      parentRoute: typeof LayoutAuthenticatedRoute
     }
     '/_layout/_authenticated/leads_/kanban': {
       id: '/_layout/_authenticated/leads_/kanban'
@@ -1691,6 +1711,7 @@ interface LayoutAuthenticatedRouteChildren {
   LayoutAuthenticatedProfileSetupRoute: typeof LayoutAuthenticatedProfileSetupRoute
   LayoutAuthenticatedProposalsRoute: typeof LayoutAuthenticatedProposalsRoute
   LayoutAuthenticatedSchedulerRoute: typeof LayoutAuthenticatedSchedulerRoute
+  LayoutAuthenticatedEventsSlugRoute: typeof LayoutAuthenticatedEventsSlugRoute
   LayoutAuthenticatedLeadsKanbanRoute: typeof LayoutAuthenticatedLeadsKanbanRoute
   LayoutAuthenticatedMarketingComposeRoute: typeof LayoutAuthenticatedMarketingComposeRoute
   LayoutAuthenticatedPipelineAccountIdRoute: typeof LayoutAuthenticatedPipelineAccountIdRoute
@@ -1725,6 +1746,7 @@ const LayoutAuthenticatedRouteChildren: LayoutAuthenticatedRouteChildren = {
   LayoutAuthenticatedProfileSetupRoute: LayoutAuthenticatedProfileSetupRoute,
   LayoutAuthenticatedProposalsRoute: LayoutAuthenticatedProposalsRoute,
   LayoutAuthenticatedSchedulerRoute: LayoutAuthenticatedSchedulerRoute,
+  LayoutAuthenticatedEventsSlugRoute: LayoutAuthenticatedEventsSlugRoute,
   LayoutAuthenticatedLeadsKanbanRoute: LayoutAuthenticatedLeadsKanbanRoute,
   LayoutAuthenticatedMarketingComposeRoute:
     LayoutAuthenticatedMarketingComposeRoute,

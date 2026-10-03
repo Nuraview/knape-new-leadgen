@@ -237,6 +237,32 @@ def _industry_filter_sql_and_args(column: str, filter_value: str) -> tuple[str, 
     return f"({subs})", list(uniq)
 
 
+def _effective_tier_sql(prefix: str = "") -> str:
+    """SQL for a lead's tier, used by the Events section's chips and filter.
+
+    ``accounts.tier`` is the authoritative value, set by the event collectors
+    and booth-scan import. When it is blank (a freshly collected roster that has
+    not been classified yet) the tier falls back to a bucket read off the ICP
+    score, so the Events table never shows a column of empty chips. The counts,
+    the filter and the displayed chip all go through this one expression, so
+    they always agree.
+
+    ``prefix`` is "" for the accounts query and "a." for the people join, where
+    the same columns are reached through the ``accounts a`` alias. The space
+    after the comma in the COALESCE matches the string the people-mode query
+    rewrites, so this expression survives that rewrite unchanged.
+    """
+    p = prefix
+    return (
+        "CASE "
+        f"WHEN trim(COALESCE({p}tier, '')) <> '' THEN upper(trim({p}tier)) "
+        f"WHEN COALESCE({p}icp_enhanced_score, {p}icp_score) >= 8 THEN 'T0-HOT' "
+        f"WHEN COALESCE({p}icp_enhanced_score, {p}icp_score) >= 6 THEN 'T1-WARM' "
+        f"WHEN COALESCE({p}icp_enhanced_score, {p}icp_score) >= 4 THEN 'T2-ICP' "
+        "ELSE 'T4-UNKNOWN' END"
+    )
+
+
 def _account_table_where_clauses(
     *,
     q: str,
@@ -248,6 +274,7 @@ def _account_table_where_clauses(
     equipment_tag: str | None = None,
     data_batch: str | None = None,
     email_filter: str = "any",
+    tier: str = "",
 ) -> tuple[list[str], list[Any]]:
     """Shared list filters. ``contact_filter``: any | has | none. When ``industry`` is None, industry is not constrained.
     ``data_batch``: all (default) | latest (newest run) | original (pre-scrape leads only).
@@ -335,6 +362,12 @@ def _account_table_where_clauses(
     if equipment_tag and equipment_tag.strip():
         where.append("strpos(lower(COALESCE(equipment_tags, '')), ?) > 0")
         args.append(equipment_tag.strip().lower())
+    if tier and tier.strip():
+        # Match on the effective tier, so filtering agrees with the chip the
+        # row shows and the count the toolbar reports — including the leads
+        # whose tier is still derived from the ICP score.
+        where.append(f"({_effective_tier_sql()}) = ?")
+        args.append(tier.strip().upper())
     return where, args
 
 
@@ -563,6 +596,14 @@ def _init_db() -> None:
         # Idempotent column adds for older databases.
         conn.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS equipment_needs TEXT")
         conn.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS data_batch TEXT DEFAULT ''")
+        # Events section: the trade-show classification shown in its table.
+        # tier/segment describe the company; captured_by/repeat_attendee are set
+        # per contact by the booth-scan import, where the scan carries who took
+        # it. All nullable: rows without them fall back to a score-derived tier.
+        conn.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS tier TEXT")
+        conn.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS segment TEXT")
+        conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS captured_by TEXT")
+        conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS repeat_attendee INTEGER DEFAULT 0")
         conn.commit()
     finally:
         conn.close()
@@ -1802,6 +1843,7 @@ def list_accounts(
     data_batch: str = Query(default="all"),
     mode: str = Query(default="accounts"),
     sort: str = Query(default="icp"),
+    tier: str = Query(default=""),
 ) -> dict[str, Any]:
     conn = _connect()
     try:
@@ -1815,6 +1857,7 @@ def list_accounts(
             has_reminder=has_reminder,
             equipment_tag=equipment_tag if equipment_tag.strip() else None,
             data_batch=data_batch,
+            tier=tier,
         )
         order = "COALESCE(icp_enhanced_score, icp_score) DESC, icp_score DESC, company ASC" if sort == "icp" else "fresh_signal DESC, last_sweep_at DESC"
         rows = conn.execute(
@@ -1824,6 +1867,8 @@ def list_accounts(
                    COALESCE(NULLIF(trim(equipment_needs), ''), '') AS equipment_needs,
                    COALESCE(NULLIF(trim(spark_brief), ''), NULLIF(trim(signal_evidence), ''), '') AS company_profile,
                    lead_source_bucket, fresh_signal,
+                   {_effective_tier_sql()} AS tier,
+                   COALESCE(segment, '') AS segment,
                    swot_json,
                    COALESCE(data_batch, '') AS data_batch,
                    (SELECT COUNT(*) FROM contacts c WHERE c.account_id = accounts.id) AS contacts_count,
@@ -1878,8 +1923,12 @@ def list_accounts(
             people = conn.execute(
                 f"""
                 SELECT c.id, a.id AS account_id,
-                       c.person_name, c.job_title, c.email, c.linkedin_url, c.source_kind, c.confidence, a.company, a.industry,
+                       c.person_name, c.job_title, c.email, c.phone, c.linkedin_url, c.source_kind, c.confidence, a.company, a.industry,
                        COALESCE(a.icp_enhanced_score, a.icp_score) as score,
+                       {_effective_tier_sql("a.")} AS tier,
+                       COALESCE(a.segment, '') AS segment,
+                       COALESCE(c.captured_by, '') AS captured_by,
+                       COALESCE(c.repeat_attendee, 0) AS repeat_attendee,
                        a.website, a.signal_evidence,
                        (SELECT e.url FROM evidence e WHERE e.account_id = a.id AND trim(COALESCE(e.url, '')) != ''
                         ORDER BY e.id DESC LIMIT 1) AS signal_url
@@ -1926,15 +1975,38 @@ def list_event_pools(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, A
                 SUM(CASE WHEN EXISTS (SELECT 1 FROM contacts c
                          WHERE c.account_id = accounts.id AND trim(COALESCE(c.email,'')) <> '')
                          THEN 1 ELSE 0 END) AS with_email,
-                SUM(CASE WHEN COALESCE(website,'') <> '' THEN 1 ELSE 0 END) AS with_website
+                SUM(CASE WHEN COALESCE(website,'') <> '' THEN 1 ELSE 0 END) AS with_website,
+                SUM(CASE WHEN EXISTS (SELECT 1 FROM contacts c
+                         WHERE c.account_id = accounts.id
+                         AND lower(COALESCE(c.linkedin_url,'')) LIKE '%linkedin.com%')
+                         THEN 1 ELSE 0 END) AS with_linkedin
             FROM accounts
             WHERE lower(COALESCE(lead_source_bucket,'')) LIKE 'event:%'
             GROUP BY bucket
             ORDER BY total DESC
             """
         ).fetchall()
+        # Per-pool tier breakdown, for the detail toolbar's chips. Grouped on
+        # the same effective tier the rows display and the filter matches, so
+        # "T0 Hot 29" is exactly what clicking that chip then shows.
+        tier_rows = conn.execute(
+            f"""
+            SELECT
+                lower(COALESCE(lead_source_bucket,'')) AS bucket,
+                ({_effective_tier_sql()}) AS tier,
+                COUNT(*) AS c
+            FROM accounts
+            WHERE lower(COALESCE(lead_source_bucket,'')) LIKE 'event:%'
+            GROUP BY bucket, tier
+            """
+        ).fetchall()
     finally:
         conn.close()
+    tiers_by_bucket: dict[str, dict[str, int]] = {}
+    for tr in tier_rows:
+        tiers_by_bucket.setdefault(str(tr["bucket"] or ""), {})[
+            str(tr["tier"] or "")
+        ] = int(tr["c"] or 0)
     pools: list[dict[str, Any]] = []
     for r in rows:
         bucket = str(r["bucket"] or "")
@@ -1949,6 +2021,8 @@ def list_event_pools(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, A
                 "with_contacts": int(r["with_contacts"] or 0),
                 "with_email": int(r["with_email"] or 0),
                 "with_website": int(r["with_website"] or 0),
+                "with_linkedin": int(r["with_linkedin"] or 0),
+                "tiers": tiers_by_bucket.get(bucket, {}),
             }
         )
     return {"pools": pools}
