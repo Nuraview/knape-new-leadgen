@@ -2257,11 +2257,11 @@ def list_event_pools(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, A
             f"""
             SELECT
                 lower(COALESCE(lead_source_bucket,'')) AS bucket,
-                ({_effective_tier_sql()}) AS tier,
+                ({_effective_tier_sql()}) AS eff_tier,
                 COUNT(*) AS c
             FROM accounts
             WHERE lower(COALESCE(lead_source_bucket,'')) LIKE 'event:%'
-            GROUP BY bucket, tier
+            GROUP BY bucket, eff_tier
             """
         ).fetchall()
     finally:
@@ -2269,7 +2269,7 @@ def list_event_pools(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, A
     tiers_by_bucket: dict[str, dict[str, int]] = {}
     for tr in tier_rows:
         tiers_by_bucket.setdefault(str(tr["bucket"] or ""), {})[
-            str(tr["tier"] or "")
+            str(tr["eff_tier"] or "")
         ] = int(tr["c"] or 0)
     pools: list[dict[str, Any]] = []
     for r in rows:
