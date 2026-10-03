@@ -132,6 +132,10 @@ const ALLOWED: ReadonlyArray<{ method: string; prefix: string }> = [
   { method: "POST", prefix: "/api/pipeline/scrape" },
   { method: "POST", prefix: "/api/pipeline/enrich" },
   { method: "POST", prefix: "/api/pipeline/enrich-contacts" },
+  // Jev semantic enrichment batch (ICP/pain/offer scoring + routing). Read-only
+  // to the lead data in the sense that it spends no provider credits; it writes
+  // interpreted fields and provenance, never deletes.
+  { method: "POST", prefix: "/api/pipeline/jev-enrich" },
 
   // Client-tunable settings, including the Keys tab.
   { method: "GET", prefix: "/api/settings" },

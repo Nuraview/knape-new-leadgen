@@ -604,9 +604,244 @@ def _init_db() -> None:
         conn.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS segment TEXT")
         conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS captured_by TEXT")
         conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS repeat_attendee INTEGER DEFAULT 0")
+
+        # --- Jev semantic layer: raw evidence text + interpreted fields --------
+        # account_pages keeps the crawled page TEXT that Jev classifies, which the
+        # pipeline otherwise discards. lead_semantic stores each interpreted field
+        # WITH provenance, so a rep can trace "booking friction detected" back to
+        # the page that caused it and we can re-run improved rubrics later. The
+        # source columns on accounts/contacts are never overwritten by a judgment.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS account_pages (
+                id BIGSERIAL PRIMARY KEY,
+                account_id INTEGER NOT NULL,
+                url TEXT,
+                kind TEXT,
+                text TEXT,
+                observed_at DOUBLE PRECISION NOT NULL DEFAULT 0,
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_account_pages_account ON account_pages(account_id)")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS lead_semantic (
+                account_id INTEGER NOT NULL,
+                field TEXT NOT NULL,
+                value TEXT,
+                confidence DOUBLE PRECISION,
+                source_url TEXT,
+                observed_at DOUBLE PRECISION NOT NULL DEFAULT 0,
+                extractor TEXT,
+                rubric_version TEXT,
+                jev_model TEXT,
+                raw_json TEXT,
+                PRIMARY KEY (account_id, field)
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_lead_semantic_field ON lead_semantic(field)")
+        # Hot copies of the most-queried Jev outputs, for fast list/sort/filter
+        # (full provenance always lives in lead_semantic). All nullable.
+        for col, typ in (
+            ("icp_fit", "DOUBLE PRECISION"),
+            ("pain_strength", "DOUBLE PRECISION"),
+            ("account_priority", "DOUBLE PRECISION"),
+            ("offer_angle", "TEXT"),
+            ("outreach_route", "TEXT"),
+            ("review_state", "TEXT"),
+            ("jev_rubric_version", "TEXT"),
+            ("jev_evaluated_at", "DOUBLE PRECISION"),
+        ):
+            conn.execute(f"ALTER TABLE accounts ADD COLUMN IF NOT EXISTS {col} {typ}")
+        # Per-contact buyer routing from Jev.
+        conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS jev_role_class TEXT")
+        conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS jev_proximity DOUBLE PRECISION")
         conn.commit()
     finally:
         conn.close()
+
+
+# --- Jev semantic layer: evidence capture, provenance store, state builder ----
+def save_account_page(account_id: int, url: str, text: str, kind: str = "page") -> None:
+    """Persist one crawled page's text for later semantic classification.
+
+    Replaces an earlier capture of the same (account, url) so re-crawls do not
+    pile up. Text is capped so a giant page cannot bloat the row.
+    """
+    _init_db()
+    conn = _connect()
+    try:
+        conn.execute(
+            "DELETE FROM account_pages WHERE account_id = ? AND COALESCE(url,'') = ?",
+            (account_id, url or ""),
+        )
+        conn.execute(
+            "INSERT INTO account_pages (account_id, url, kind, text, observed_at) VALUES (?, ?, ?, ?, ?)",
+            (account_id, url or "", kind, (text or "")[:20000], time.time()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_account_evidence_text(account_id: int, limit_chars: int = 8000) -> str:
+    """Concatenated captured page text for an account, newest first, capped.
+
+    This is the evidence Jev reads. Kept small on purpose: Jev 1.13 degrades on
+    large, irrelevant state, so we send a bounded, relevant slice.
+    """
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT text FROM account_pages WHERE account_id = ? ORDER BY observed_at DESC",
+            (account_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    out: list[str] = []
+    total = 0
+    for r in rows:
+        t = str(r["text"] or "").strip()
+        if not t:
+            continue
+        out.append(t)
+        total += len(t)
+        if total >= limit_chars:
+            break
+    return "\n\n".join(out)[:limit_chars]
+
+
+def save_lead_semantic(
+    account_id: int,
+    field: str,
+    value: Any,
+    *,
+    confidence: float | None = None,
+    source_url: str = "",
+    extractor: str = "jev",
+    rubric_version: str = "",
+    jev_model: str = "",
+    raw: Any = None,
+) -> None:
+    """Upsert one interpreted field with full provenance (never touches source rows)."""
+    _init_db()
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO lead_semantic
+                (account_id, field, value, confidence, source_url, observed_at, extractor, rubric_version, jev_model, raw_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (account_id, field) DO UPDATE SET
+                value = EXCLUDED.value, confidence = EXCLUDED.confidence,
+                source_url = EXCLUDED.source_url, observed_at = EXCLUDED.observed_at,
+                extractor = EXCLUDED.extractor, rubric_version = EXCLUDED.rubric_version,
+                jev_model = EXCLUDED.jev_model, raw_json = EXCLUDED.raw_json
+            """,
+            (
+                account_id, field,
+                None if value is None else str(value),
+                confidence, source_url or "", time.time(), extractor,
+                rubric_version, jev_model,
+                json.dumps(raw, default=str) if raw is not None else None,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_account_jev_summary(
+    account_id: int,
+    *,
+    icp_fit: float | None = None,
+    pain_strength: float | None = None,
+    account_priority: float | None = None,
+    offer_angle: str = "",
+    outreach_route: str = "",
+    review_state: str = "",
+    rubric_version: str = "",
+) -> None:
+    """Write the hot, queryable copies of an account's Jev outputs on accounts."""
+    _init_db()
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            UPDATE accounts SET
+                icp_fit = COALESCE(?, icp_fit),
+                pain_strength = COALESCE(?, pain_strength),
+                account_priority = COALESCE(?, account_priority),
+                offer_angle = COALESCE(NULLIF(?, ''), offer_angle),
+                outreach_route = COALESCE(NULLIF(?, ''), outreach_route),
+                review_state = COALESCE(NULLIF(?, ''), review_state),
+                jev_rubric_version = COALESCE(NULLIF(?, ''), jev_rubric_version),
+                jev_evaluated_at = ?
+            WHERE id = ?
+            """,
+            (
+                icp_fit, pain_strength, account_priority,
+                offer_angle, outreach_route, review_state, rubric_version,
+                time.time(), account_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_contact_buyer(contact_id: int, role_class: str, proximity: float | None) -> None:
+    """Store a contact's Jev buyer classification (role + proximity)."""
+    _init_db()
+    conn = _connect()
+    try:
+        conn.execute(
+            "UPDATE contacts SET jev_role_class = COALESCE(NULLIF(?, ''), jev_role_class), "
+            "jev_proximity = COALESCE(?, jev_proximity) WHERE id = ?",
+            (role_class or "", proximity, contact_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def account_jev_state(account_id: int) -> dict[str, Any]:
+    """Build the Jev `state` (facts only) for one account from the DB.
+
+    Pulls the company row, its captured page text (or the signal evidence as a
+    fallback), and its top contacts. This is what the semantic questions read.
+    """
+    conn = _connect()
+    try:
+        a = conn.execute(
+            "SELECT id, company, website, industry, location, headcount, signal_evidence, spark_brief, equipment_needs FROM accounts WHERE id = ?",
+            (account_id,),
+        ).fetchone()
+        contacts = conn.execute(
+            "SELECT person_name, job_title FROM contacts WHERE account_id = ? ORDER BY role_rank DESC LIMIT 5",
+            (account_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    if not a:
+        return {}
+    evidence = get_account_evidence_text(account_id) or str(a["signal_evidence"] or "")
+    return {
+        "company": {
+            "name": a["company"],
+            "website": a["website"],
+            "industry": a["industry"],
+            "location": a["location"],
+            "size_hint": a["headcount"],
+            "profile": a["spark_brief"],
+            "equipment_needs": a["equipment_needs"],
+        },
+        "evidence": evidence[:8000],
+        "contacts": [{"name": c["person_name"], "title": c["job_title"]} for c in contacts],
+    }
 
 
 def _ensure_default_user() -> None:
@@ -2258,6 +2493,39 @@ def pipeline_enrich_contacts(_user: dict[str, Any] = Depends(_auth_user)) -> dic
     from outreach import scrape_runner
 
     return scrape_runner.run_contact_enrich(trigger="manual")
+
+
+class JevEnrichInput(BaseModel):
+    scope: str = "all"
+    limit: int = 50
+
+
+@app.post("/api/pipeline/jev-enrich")
+def pipeline_jev_enrich(
+    body: JevEnrichInput | None = None, _user: dict[str, Any] = Depends(_auth_user)
+) -> dict[str, Any]:
+    """Run the Jev semantic enrichment batch over a scope, in a background thread.
+
+    Captures page evidence, runs the ICP/pain/offer rubric, computes the composite
+    score and route in code, and writes provenance to lead_semantic + the hot
+    columns on accounts. Spends no contact-provider credits. Returns immediately.
+    """
+    import threading
+
+    from outreach import jev_enrich
+
+    scope = (body.scope if body else "all") or "all"
+    limit = max(1, min(2000, (body.limit if body else 50) or 50))
+
+    def _work() -> None:
+        try:
+            print(f"[jev-enrich] start scope={scope} limit={limit}")
+            print(f"[jev-enrich] done: {jev_enrich.run_batch(scope=scope, limit=limit)}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[jev-enrich] failed: {str(e)[:300]}")
+
+    threading.Thread(target=_work, daemon=True, name="jev-enrich").start()
+    return {"ok": True, "started": True, "scope": scope, "limit": limit}
 
 
 # ================== Project management (in-dashboard kanban) ==================
