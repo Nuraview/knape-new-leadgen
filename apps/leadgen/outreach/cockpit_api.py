@@ -608,10 +608,28 @@ def sync_records(rows: list[dict[str, Any]]) -> dict[str, Any]:
     now = time.time()
     conn = _connect()
     try:
-        conn.execute("DELETE FROM contacts")
-        conn.execute("DELETE FROM evidence")
-        conn.execute("DELETE FROM accounts")
+        # Preserve event pools (WEFTEC, WorkBoat, …). A full re-sync rebuilds the
+        # main discovery accounts from the pipeline output, but event leads are
+        # loaded on their own track (sources.*_exhibitors, booth_scan_import) and
+        # must not be wiped by it.
+        _EVENT_WHERE = "lower(COALESCE(lead_source_bucket,'')) LIKE 'event:%'"
+        conn.execute(
+            f"DELETE FROM contacts WHERE account_id IN (SELECT id FROM accounts WHERE NOT ({_EVENT_WHERE}))"
+        )
+        conn.execute(
+            f"DELETE FROM evidence WHERE account_id IN (SELECT id FROM accounts WHERE NOT ({_EVENT_WHERE}))"
+        )
+        conn.execute(f"DELETE FROM accounts WHERE NOT ({_EVENT_WHERE})")
+        # Companies kept as event leads keep ownership of their (company, website)
+        # row; skip any incoming main-pipeline group that would collide with one,
+        # so the unique index never aborts the rebuild.
+        preserved_keys: set[str] = {
+            normalize_company_key(str(r["company"] or ""))
+            for r in conn.execute(f"SELECT company FROM accounts WHERE {_EVENT_WHERE}").fetchall()
+        }
         for company_key, leads in grouped.items():
+            if company_key in preserved_keys:
+                continue
             best = max(
                 leads,
                 key=lambda r: float(str(r.get("icp_enhanced_score") or r.get("icp_score") or 0) or 0),
@@ -774,13 +792,26 @@ def sync_records(rows: list[dict[str, Any]]) -> dict[str, Any]:
         conn.close()
 
 
-def merge_records(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def merge_records(
+    rows: list[dict[str, Any]],
+    *,
+    data_batch_override: str | None = None,
+    source_bucket_override: str | None = None,
+) -> dict[str, Any]:
     """Additively merge scraped rows into Postgres — the scheduler's sync path.
 
     Unlike ``sync_records`` (full destructive rebuild for explicit re-syncs),
     this NEVER deletes: existing accounts keep their ids, contacts, and email
     sequences (fields refresh in place); unseen companies are inserted with
     today's ``data_batch``. Returns {"ok", "added", "updated", "total"}.
+
+    Event collectors pass ``data_batch_override`` (e.g. ``weftec-2026``) and
+    ``source_bucket_override`` (e.g. ``event:weftec-2026``) so a show's leads
+    land in their own pool, isolated from the main discovery batches, and can be
+    targeted as one audience. Because the schema keeps a single row per
+    ``(company, website)``, a company that already exists in the main pipeline
+    and also exhibits at the show is re-tagged into the event pool rather than
+    duplicated. That is intended: event runs are explicit and separate.
     """
     _init_db()
     rows = [repair_lead_post_url(r) for r in rows]
@@ -846,6 +877,34 @@ def merge_records(rows: list[dict[str, Any]]) -> dict[str, Any]:
                         existing[company_key],
                     ),
                 )
+                # Event runs re-tag an already-known company into the show pool so
+                # the campaign can address every exhibitor as one audience.
+                if source_bucket_override or data_batch_override:
+                    conn.execute(
+                        """
+                        UPDATE accounts SET
+                            lead_source_bucket = COALESCE(NULLIF(?, ''), lead_source_bucket),
+                            data_batch = COALESCE(NULLIF(?, ''), data_batch)
+                        WHERE id = ?
+                        """,
+                        (
+                            source_bucket_override or "",
+                            data_batch_override or "",
+                            existing[company_key],
+                        ),
+                    )
+                    # Event exhibitor rows carry no contact yet; attach the show
+                    # as evidence so the lead is traceable to its source.
+                    conn.execute(
+                        "INSERT INTO evidence (account_id, label, source, url, snippet) VALUES (?, ?, ?, ?, ?)",
+                        (
+                            existing[company_key],
+                            str(best.get("signal_category") or "event"),
+                            str(best.get("source") or ""),
+                            str(best.get("post_url") or ""),
+                            signal_text[:800],
+                        ),
+                    )
                 updated += 1
                 continue
 
@@ -865,8 +924,11 @@ def merge_records(rows: list[dict[str, Any]]) -> dict[str, Any]:
                     icp, icp2, spark,
                     str(best.get("signal_category") or ""), signal_text,
                     str(best.get("budget_band") or ""), str(best.get("equipment_tags") or ""),
-                    equipment_from_group, _derive_source_bucket(leads, best), 0, fresh,
-                    json.dumps(swot), now, today_batch_label(),
+                    equipment_from_group,
+                    source_bucket_override or _derive_source_bucket(leads, best),
+                    0, fresh,
+                    json.dumps(swot), now,
+                    data_batch_override or today_batch_label(),
                 ),
             )
             account_id = int(cur.fetchone()["id"])
