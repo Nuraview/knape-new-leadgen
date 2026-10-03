@@ -269,7 +269,31 @@ def _account_ids(scope: str, limit: int, only_new: bool) -> list[int]:
     return [int(r["id"]) for r in rows]
 
 
-def run_batch(scope: str = "all", limit: int = 50, capture: bool = True, only_new: bool = True) -> dict[str, Any]:
+def classify_account_buyers(account_id: int) -> int:
+    """Classify every not-yet-classified contact of an account. Returns count."""
+    conn = C._connect()
+    try:
+        comp = conn.execute("SELECT company FROM accounts WHERE id = ?", (account_id,)).fetchone()
+        rows = conn.execute(
+            "SELECT id, person_name, job_title FROM contacts "
+            "WHERE account_id = ? AND COALESCE(job_title,'') <> '' AND jev_role_class IS NULL",
+            (account_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    company = str(comp["company"]) if comp else ""
+    ctx = C.get_account_evidence_text(account_id, limit_chars=2000)
+    n = 0
+    for r in rows:
+        try:
+            classify_buyer_contact(int(r["id"]), str(r["job_title"] or ""), company, ctx)
+            n += 1
+        except Exception as e:  # noqa: BLE001
+            print(f"  buyer classify contact {r['id']} failed: {str(e)[:120]}")
+    return n
+
+
+def run_batch(scope: str = "all", limit: int = 50, capture: bool = True, only_new: bool = True, buyer: bool = False) -> dict[str, Any]:
     """Capture evidence (optional) then semantically enrich a scope of accounts.
 
     This is the primary insertion point: it runs the cheap target read and the
@@ -288,6 +312,8 @@ def run_batch(scope: str = "all", limit: int = 50, capture: bool = True, only_ne
             if res.get("ok"):
                 done += 1
                 routes[res["route"]] = routes.get(res["route"], 0) + 1
+                if buyer:
+                    classify_account_buyers(aid)
             else:
                 skipped += 1
         except Exception as e:  # noqa: BLE001 - one bad account must not stop the batch
@@ -306,6 +332,7 @@ def _cli() -> None:
     p.add_argument("--no-capture", action="store_true", help="do not fetch page text; use what is stored")
     p.add_argument("--all-accounts", action="store_true", help="re-run even accounts already evaluated")
     p.add_argument("--one", type=int, default=0, help="enrich a single account id and print the result")
+    p.add_argument("--buyer", action="store_true", help="also classify the contacts of each account")
     args = p.parse_args()
 
     C._init_db()
@@ -314,7 +341,7 @@ def _cli() -> None:
             print("capturing evidence:", capture_account_evidence(args.one), "pages")
         print(semantic_enrich_account(args.one))
         return
-    res = run_batch(scope=args.scope, limit=args.limit, capture=not args.no_capture, only_new=not args.all_accounts)
+    res = run_batch(scope=args.scope, limit=args.limit, capture=not args.no_capture, only_new=not args.all_accounts, buyer=args.buyer)
     print("jev-enrich:", res)
 
 

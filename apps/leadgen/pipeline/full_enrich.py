@@ -44,6 +44,27 @@ def enrich_one_account(account_id: int, *, max_contacts: int = 3) -> dict[str, A
         or "charter" in (acct.get("industry") or "").lower()
     )
 
+    # Optional Jev gate: don't spend contact-provider credits on an account Jev
+    # already routed to 'suppress'. Opt-in (JEV_GATE_ENRICH=1); default unchanged.
+    import os
+
+    if os.getenv("JEV_GATE_ENRICH"):
+        try:
+            from outreach.cockpit_api import _connect
+
+            c = _connect()
+            try:
+                rr = c.execute(
+                    "SELECT outreach_route FROM accounts WHERE id = ?", (account_id,)
+                ).fetchone()
+            finally:
+                c.close()
+            if rr and str(rr["outreach_route"] or "") == "suppress":
+                result["skipped"] = "jev_suppress"
+                return result
+        except Exception:
+            pass  # gating is best-effort; never block enrichment on it
+
     # 1) named contacts (crawl the site, then LinkedIn confirm/discover)
     try:
         from outreach.cockpit_api import _title_role_rank, enrich_account_contacts
