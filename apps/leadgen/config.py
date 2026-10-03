@@ -517,3 +517,27 @@ MILESTONE2_SEND_REQUIRES_CLIENT_APPROVAL = os.getenv(
 MILESTONE2_SEND_REQUIRES_HUNTER_OK = os.getenv(
     "MILESTONE2_SEND_REQUIRES_HUNTER_OK", ""
 ).lower() in ("1", "true", "yes")
+
+
+# --- Jev (TypeSafe AI System One) — semantic decision layer -------------------
+# Flagship typed-classification model used across lead-gen judgments (ICP fit,
+# pain, buyer role, dedup, routing). It evaluates state against typed questions
+# and returns structured answers with confidence, instead of writing prose.
+# The key is a SECRET: set JEV_API_KEY (or TYPESAFE_API_KEY) in .env, never in
+# code. See outreach/jev_llm.py and the lead-gen enrichment playbook.
+JEV_ENV_NAMES: tuple[str, ...] = (
+    "JEV_API_KEY",
+    "TYPESAFE_API_KEY",
+    "TYPESAFE_AI_API_KEY",
+    "jev_api_key",
+    "typesafe_api_key",
+)
+JEV_API_BASE = (
+    os.getenv("JEV_API_BASE", "https://api.typesafe.ai/v1") or "https://api.typesafe.ai/v1"
+).strip().rstrip("/")
+# Pin a specific version once thresholds are tuned; "jev-latest" tracks releases.
+JEV_MODEL = (os.getenv("JEV_MODEL", "jev-1.13.0") or "jev-1.13.0").strip()
+
+
+def get_jev_api_key() -> str:
+    return _env_first(*JEV_ENV_NAMES)
