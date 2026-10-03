@@ -89,6 +89,21 @@ also run the importer directly to preview:
     python -m sources.booth_scan_import --file /path/to/scans.csv \
         --event workboat-2025 --show "WorkBoat 2025" --dry-run
 
+If the export has a "captured by" (or "scanned by") column, that person is kept
+and shown in the Events table's "Captured by" column. A "segment" (or "category")
+column is kept too and shown under the company name. Both are optional: a file
+without them still imports.
+
+### How the Events table classifies a lead (tiers)
+
+The Events section groups leads into tiers (T0 Hot, T1 Warm, T2 ICP, T3 Partner).
+A lead's tier comes from the `accounts.tier` column when it is set, and otherwise
+falls back to a bucket derived from the ICP score, so every lead shows a tier
+even before anyone classifies it. The collectors leave `tier` blank on purpose:
+it is the authoritative, human-or-classifier-set value, so it is never guessed
+from the public directory. To set it deliberately, include a `tier` column in a
+booth-scan file (values like `T0-HOT`, `T3-PARTNER`), or set it in the database.
+
 ## Enrichment and sending
 
 Enrichment reuses the existing engine. `resolve_account` finds each company's
@@ -118,4 +133,6 @@ the open, bounce, reply, and unsubscribe tracking run as usual.
 - `outreach/event_pipeline.py`: the scoped runner that collects and enriches one
   event pool without touching the main pipeline.
 - `outreach/cockpit_api.py`: `merge_records` gained the event-tag overrides, and
-  `sync_records` now preserves `event:` accounts.
+  `sync_records` now preserves `event:` accounts. It also persists the Events
+  table's fields: `accounts.tier` and `accounts.segment`, and each contact's
+  `phone`, `captured_by` and `repeat_attendee`.

@@ -38,6 +38,14 @@ _FIELD_SYNONYMS: dict[str, tuple[str, ...]] = {
     "linkedin_url": ("linkedin", "linkedin url", "linkedin profile"),
     "notes": ("notes", "note", "comments", "comment", "remarks"),
     "booth": ("booth", "booth number", "stand"),
+    # Who on the Knape team scanned the badge, shown in the Events table's
+    # "Captured by" column. Lead-retrieval exports name this column many ways.
+    "captured_by": (
+        "captured by", "scanned by", "collected by", "retrieved by",
+        "rep", "sales rep", "staff", "scanned by user", "captured", "owner",
+    ),
+    # A segment / category the scan app recorded, shown under the company name.
+    "segment": ("segment", "category", "market", "vertical", "sector"),
 }
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -133,6 +141,8 @@ def load_booth_scans(
         is_li_profile = "linkedin.com/in/" in linkedin.lower()
         notes = _cell(row, idx.get("notes"))
         booth = _cell(row, idx.get("booth"))
+        captured_by = _cell(row, idx.get("captured_by"))
+        segment = _cell(row, idx.get("segment"))
         # A booth scan without a company still belongs to the person; label it so
         # the row groups on its own rather than merging into a blank-company bucket.
         company = company or (f"{name} (booth scan)" if name else "")
@@ -158,6 +168,9 @@ def load_booth_scans(
                 "signal_category": "event_booth_scan",
                 "signal_evidence": evidence,
                 "event": show_name,
+                # Trade-show fields for the Events table, when the export has them.
+                "captured_by": captured_by,
+                "segment": segment,
                 "data_batch": event_slug,
                 "lead_source_bucket": f"event:{event_slug}",
             }

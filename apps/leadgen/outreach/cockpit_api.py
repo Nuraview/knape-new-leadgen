@@ -890,6 +890,18 @@ def merge_records(
                 (str(x.get("equipment_needs") or "").strip() for x in leads if str(x.get("equipment_needs") or "").strip()),
                 str(best.get("equipment_needs") or "").strip(),
             )
+            # Trade-show fields for the Events table. segment is the sub-label
+            # shown under the company; tier is the authoritative classification a
+            # collector or a human sets, left blank here so it falls back to the
+            # score-derived bucket until something sets it on purpose.
+            segment_from_group = next(
+                (str(x.get("segment") or "").strip() for x in leads if str(x.get("segment") or "").strip()),
+                "",
+            )
+            tier_from_group = next(
+                (str(x.get("tier") or "").strip().upper() for x in leads if str(x.get("tier") or "").strip()),
+                "",
+            )
             icp = float(str(best.get("icp_score") or 0) or 0)
             icp2 = float(str(best.get("icp_enhanced_score") or icp) or icp)
 
@@ -904,6 +916,8 @@ def merge_records(
                         equipment_needs = COALESCE(NULLIF(?, ''), equipment_needs),
                         spark_brief = COALESCE(NULLIF(?, ''), spark_brief),
                         website = COALESCE(NULLIF(?, ''), website),
+                        segment = COALESCE(NULLIF(?, ''), segment),
+                        tier = COALESCE(NULLIF(?, ''), tier),
                         swot_json = ?, last_sweep_at = ?
                     WHERE id = ?
                     """,
@@ -914,6 +928,8 @@ def merge_records(
                         equipment_from_group,
                         profile_from_group,
                         website,
+                        segment_from_group,
+                        tier_from_group,
                         json.dumps(swot), now,
                         existing[company_key],
                     ),
@@ -955,9 +971,9 @@ def merge_records(
                 """
                 INSERT INTO accounts (
                     company, website, industry, location, headcount, icp_score, icp_enhanced_score, spark_brief,
-                    signal_category, signal_evidence, budget_band, equipment_tags, equipment_needs, lead_source_bucket, has_reminder,
+                    signal_category, signal_evidence, budget_band, equipment_tags, equipment_needs, segment, tier, lead_source_bucket, has_reminder,
                     fresh_signal, swot_json, last_sweep_at, data_batch
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """,
                 (
                     company, website, _cockpit_industry_bucket(best, icp2),
@@ -966,6 +982,7 @@ def merge_records(
                     str(best.get("signal_category") or ""), signal_text,
                     str(best.get("budget_band") or ""), str(best.get("equipment_tags") or ""),
                     equipment_from_group,
+                    segment_from_group, tier_from_group,
                     source_bucket_override or _derive_source_bucket(leads, best),
                     0, fresh,
                     json.dumps(swot), now,
@@ -985,17 +1002,29 @@ def merge_records(
                 source_kind, conf = _contact_kind_conf(
                     email, str(lead.get("email_verification_status") or ""), is_li
                 )
+                # Booth scans carry a phone and who scanned the badge; keep both.
+                # repeat_attendee is 1 only when the source says so (a prior-year
+                # match), never guessed.
+                phone = str(lead.get("phone") or "").strip()
+                captured_by = str(lead.get("captured_by") or "").strip()
+                repeat_attendee = (
+                    1
+                    if str(lead.get("repeat_attendee") or "").strip().lower()
+                    in ("1", "true", "yes", "y")
+                    else 0
+                )
                 conn.execute(
                     """
                     INSERT INTO contacts (
                         account_id, person_name, job_title, email, phone, linkedin_url,
-                        source_kind, confidence, role_rank, raw_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        source_kind, confidence, role_rank, captured_by, repeat_attendee, raw_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        account_id, person, str(lead.get("job_title") or ""), email, "",
+                        account_id, person, str(lead.get("job_title") or ""), email, phone,
                         lead_url if is_li else "", source_kind, conf,
                         _title_role_rank(str(lead.get("job_title") or "")),
+                        captured_by, repeat_attendee,
                         json.dumps(lead, default=str),
                     ),
                 )
