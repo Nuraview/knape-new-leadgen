@@ -107,7 +107,7 @@ KNAPE_ICP: dict[str, Any] = {
         "none": "No meaningful buying trigger.",
     },
     "disqualifiers": [
-        "A competing air-movement equipment rep, distributor, or a manufacturer that sells direct.",
+        "A direct competitor: another air-movement/ventilation equipment rep or distributor, or a manufacturer of fans, blowers, dampers, louvers or heaters that competes with Knape's lines (a maker of pumps, instruments or other non-competing gear is NOT disqualified and may be an OEM target).",
         "A residential/consumer HVAC business with no industrial or commercial air-moving need.",
         "Academic, research-only, or a body that does not purchase this equipment.",
         "A staffing, recruiting or marketing agency.",

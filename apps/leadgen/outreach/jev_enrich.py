@@ -276,6 +276,7 @@ def run_batch(scope: str = "all", limit: int = 50, capture: bool = True, only_ne
     full website-to-ICP pass, writing scores/routes/provenance. It spends NO
     contact-provider credits; a caller gates paid enrichment on `outreach_route`.
     """
+    C._init_db()
     ids = _account_ids(scope, limit, only_new)
     done = skipped = errors = 0
     routes: dict[str, int] = {}
@@ -307,6 +308,7 @@ def _cli() -> None:
     p.add_argument("--one", type=int, default=0, help="enrich a single account id and print the result")
     args = p.parse_args()
 
+    C._init_db()
     if args.one:
         if not C.get_account_evidence_text(args.one).strip():
             print("capturing evidence:", capture_account_evidence(args.one), "pages")
