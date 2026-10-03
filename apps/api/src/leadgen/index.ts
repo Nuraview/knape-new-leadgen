@@ -121,6 +121,10 @@ const ALLOWED: ReadonlyArray<{ method: string; prefix: string }> = [
   { method: "GET", prefix: "/api/summary" },
   { method: "GET", prefix: "/api/accounts" },
 
+  // Event lead pools (WEFTEC, WorkBoat, …): the overview counts for the Events
+  // section. Read-only; the per-pool lists reuse /api/accounts.
+  { method: "GET", prefix: "/api/events" },
+
   // Pipeline: status feed, scrape-date batches (the Today / Yesterday /
   // Day-before chips), and the operational triggers behind Live Lead Finder.
   { method: "GET", prefix: "/api/pipeline/status" },
