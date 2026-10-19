@@ -5,6 +5,7 @@ import type * as React from "react";
 import { NavActivityToday } from "@/components/nav-activity-today";
 import { WorkClock } from "@/components/work-clock";
 import { NavCrm } from "@/components/nav-crm";
+import { NavShows } from "@/components/nav-shows";
 import { NavMain } from "@/components/nav-main";
 import { NavProjects } from "@/components/nav-projects";
 import { ThemeToggleDropdown } from "@/components/theme-toggle-dropdown";
@@ -125,6 +126,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         */}
         {brand.showWorkClock && <WorkClock />}
         <NavCrm />
+        <NavShows />
         {showTeamSurfaces && (
           <>
             <NavMain />

@@ -14,7 +14,7 @@
  * GET /api/events, which counts the whole pool.
  */
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	ChevronLeft,
 	Download,
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import Layout from "@/components/common/layout";
+import { AttendeesGrid } from "@/components/leadgen/company-grid";
 import { LeadsPager } from "@/components/leadgen/leads-pager";
 import { TierChip } from "@/components/leadgen/tier-chip";
 import PageTitle from "@/components/page-title";
@@ -49,6 +50,7 @@ const EXPORT_PAGE_SIZE = 2000;
 const COLS = "88px minmax(0,1.6fr) minmax(0,1fr) 92px 84px 76px";
 
 type ListFilter = "all" | "contacts" | "email";
+type EventView = "exhibitors" | "attendees";
 
 function scoreTone(score: number | undefined): string {
 	const s = score ?? 0;
@@ -84,6 +86,8 @@ function accountParams(
 
 function RouteComponent() {
 	const { slug } = Route.useParams();
+	const { view } = Route.useSearch();
+	const navigate = useNavigate();
 	const ev = eventBySlug(slug);
 
 	const [tier, setTier] = useState("");
@@ -109,6 +113,9 @@ function RouteComponent() {
 				page_size: PAGE_SIZE,
 			}),
 		placeholderData: (prev) => prev,
+		// The exhibitor table and the attendees grid are two tabs on one route;
+		// only fetch the accounts table when it is the one on screen.
+		enabled: view === "exhibitors",
 	});
 
 	const rows: Account[] =
@@ -188,15 +195,43 @@ function RouteComponent() {
 				<span className="truncate font-medium text-sm text-foreground/80">
 					/ {ev?.shortName ?? title}
 				</span>
-				<Button
-					className="ms-auto"
-					variant="outline"
-					onClick={exportCsv}
-					disabled={exporting || total === 0}
-				>
-					<Download className="size-4" />
-					{exporting ? "Exporting…" : "Export CSV"}
-				</Button>
+
+				{/* Exhibitors / Attendees tabs: two views of one show pool. */}
+				<div className="ms-3 inline-flex rounded-md border border-border p-0.5 text-xs">
+					{(["exhibitors", "attendees"] as EventView[]).map((v) => (
+						<button
+							key={v}
+							type="button"
+							onClick={() =>
+								navigate({
+									to: "/events/$slug",
+									params: { slug },
+									search: { view: v },
+								})
+							}
+							className={cn(
+								"rounded px-2.5 py-1 capitalize transition-colors",
+								view === v
+									? "bg-foreground text-background"
+									: "text-muted-foreground hover:text-foreground",
+							)}
+						>
+							{v}
+						</button>
+					))}
+				</div>
+
+				{view === "exhibitors" ? (
+					<Button
+						className="ms-auto"
+						variant="outline"
+						onClick={exportCsv}
+						disabled={exporting || total === 0}
+					>
+						<Download className="size-4" />
+						{exporting ? "Exporting…" : "Export CSV"}
+					</Button>
+				) : null}
 			</header>
 
 			<div className="flex flex-1 flex-col overflow-y-auto">
@@ -208,6 +243,10 @@ function RouteComponent() {
 					</p>
 				</div>
 
+				{view === "attendees" ? (
+					<AttendeesGrid slug={slug} />
+				) : (
+				<>
 				{/* Toolbar */}
 				<div className="flex flex-col gap-3 px-3 py-3 sm:px-5">
 					<div className="relative w-full sm:w-72">
@@ -388,11 +427,16 @@ function RouteComponent() {
 						/>
 					) : null}
 				</div>
+				</>
+				)}
 			</div>
 		</Layout>
 	);
 }
 
 export const Route = createFileRoute("/_layout/_authenticated/events_/$slug")({
+	validateSearch: (search: Record<string, unknown>): { view: EventView } => ({
+		view: search.view === "attendees" ? "attendees" : "exhibitors",
+	}),
 	component: RouteComponent,
 });

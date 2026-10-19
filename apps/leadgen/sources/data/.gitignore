@@ -1,0 +1,10 @@
+# Public exhibitor directories (company, booth, website) are safe to commit.
+# Attendee / contact exports are personal data and must stay off the repo, the
+# same rule the tec5 app follows. Ignore anything that looks like a people list;
+# allow the public exhibitor CSVs through.
+*attendee*
+*attendees*
+*contact*
+*people*
+*.jsonl
+!*-exhibitors.csv

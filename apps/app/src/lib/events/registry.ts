@@ -64,6 +64,18 @@ export const EVENTS: EventDef[] = [
 			"International WorkBoat Show. Prospecting from the prior show's returning exhibitors, collected closer to the event.",
 		accentClass: "bg-orange-500",
 	},
+	{
+		slug: "semicon-2026",
+		name: "SEMICON West 2026",
+		shortName: "SEMICON West",
+		vertical: "Semiconductor",
+		location: "Moscone Center, San Francisco, CA",
+		dates: "Oct 2026",
+		status: "post-show",
+		description:
+			"The 842 exhibitors from the public SEMICON West 2026 directory, each with its booth and website. The people registered through the show's portal are under Attendees.",
+		accentClass: "bg-cyan-500",
+	},
 ];
 
 // Full literal class strings, NOT built at runtime: Tailwind v4 generates a
