@@ -991,7 +991,7 @@ def sync_records(rows: list[dict[str, Any]]) -> dict[str, Any]:
                         prior["linkedin_url"] = lead_url
                     continue
                 status = str(lead.get("email_verification_status") or "").lower()
-                if email and status in ("deliverable", "site_published"):
+                if email and status in ("deliverable", "verified", "site_published"):
                     source_kind, conf = ("Website" if status == "site_published" else "Hunter"), (
                         0.85 if status == "site_published" else 0.9
                     )
@@ -1332,7 +1332,7 @@ def _contact_kind_conf(email: str, status: str, is_linkedin_profile: bool) -> tu
     """Map an email + verification status (or a LinkedIn-only contact) to (source_kind, confidence).
     Mirrors the inline logic in ``sync_records`` so the two write paths never diverge."""
     status = (status or "").lower()
-    if email and status in ("deliverable", "site_published"):
+    if email and status in ("deliverable", "verified", "site_published"):
         return ("Website", 0.85) if status == "site_published" else ("Hunter", 0.9)
     if email and status in ("pattern_guess", "pattern_inferred"):
         return ("Pattern", 0.55)
