@@ -186,13 +186,18 @@ def load_attendees(
                     """
                     INSERT INTO accounts (
                         company, website, location, signal_category, signal_evidence,
-                        segment, lead_source_bucket, last_sweep_at, data_batch
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                        segment, lead_source_bucket, last_sweep_at, data_batch,
+                        icp_score, icp_enhanced_score
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                     """,
                     (
                         r["company"], website_val, r["location"], "event_attendee",
                         "Registered attendee.", "Attendee",
                         source_bucket, now, data_batch,
+                        # An explicit 0, not NULL: the list view filters on
+                        # COALESCE(icp_enhanced_score, icp_score) >= min_icp, and a
+                        # NULL score fails `>= 0`, which would hide the company.
+                        0, 0,
                     ),
                 )
                 account_id = int(cur.fetchone()["id"])
