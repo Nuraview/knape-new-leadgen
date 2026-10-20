@@ -147,16 +147,37 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 
 	const list = useQuery({
 		queryKey: ["events", "attendees", slug],
-		queryFn: () =>
-			leadgen.get<AccountsResponse>("/api/accounts", {
+		queryFn: async () => {
+			// The cockpit caps a page at 2,000 companies, and a large show (WorkBoat
+			// has ~3,750 companies with people) exceeds that. Fetch page 1, then pull
+			// the remaining pages and concatenate, so every company shows and the
+			// stat tiles — which sum the loaded rows — count the whole roster rather
+			// than one page of it.
+			const base = {
 				data_batch: slug,
 				mode: "accounts",
 				contact_filter: "has",
 				min_icp: 0,
 				sort: "icp",
-				page: 1,
 				page_size: PAGE_SIZE,
-			}),
+			} as const;
+			const first = await leadgen.get<AccountsResponse>("/api/accounts", {
+				...base,
+				page: 1,
+			});
+			if (first.mode !== "accounts" || first.pages <= 1) return first;
+			const rest = await Promise.all(
+				Array.from({ length: first.pages - 1 }, (_, i) =>
+					leadgen.get<AccountsResponse>("/api/accounts", {
+						...base,
+						page: i + 2,
+					}),
+				),
+			);
+			const items = [...first.items];
+			for (const r of rest) if (r.mode === "accounts") items.push(...r.items);
+			return { ...first, items };
+		},
 	});
 
 	const all: Account[] =

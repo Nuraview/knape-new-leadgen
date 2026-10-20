@@ -1,0 +1,10 @@
+# Personal data (attendee/prospect/speaker rosters, badge lists, spreadsheets)
+# must never be committed. Only the public exhibitor directory is tracked.
+*attendee*.csv
+*prospect*.csv
+*speaker*.csv
+*badge*.csv
+*.tsv
+*.xlsx
+*.apk
+!*exhibitor*.csv
