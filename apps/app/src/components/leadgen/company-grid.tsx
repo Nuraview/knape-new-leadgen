@@ -9,8 +9,15 @@
  * contact_filter=has) gives one row per company plus its people counts, which
  * is exactly a card. The company's individual people are loaded on demand when
  * a card opens (see CompanyDetailSheet). Summing the per-company counts here
- * gives the headline tiles without a second request, and keeps the whole view
- * under the endpoint's 2,000-row page cap.
+ * gives the headline tiles without a second request.
+ *
+ * The whole roster is fetched once (every page, concatenated) and held in
+ * memory, so search, the tier chips, the email-status chips and the sort are
+ * all done client-side here: they are instant and need no further request. The
+ * filter controls mirror the Exhibitors table so the two tabs feel the same.
+ * A roster is otherwise an alphabetical wall of mostly single-person companies,
+ * so the default sort is by headcount (the big delegations first), which is
+ * what makes it navigable.
  */
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Mail, Search, Users } from "lucide-react";
@@ -23,10 +30,15 @@ import { leadgen } from "@/fetchers/leadgen/client";
 import type { Account, AccountsResponse } from "@/fetchers/leadgen/types";
 import { cn } from "@/lib/cn";
 import { downloadCsv, toCsv } from "@/lib/csv";
-import { tierByKey } from "@/lib/events/registry";
+import { TIERS, tierByKey } from "@/lib/events/registry";
 
-/** One page covers the whole attendee pool: well under the endpoint's 2,000 cap. */
+/** One page covers the whole attendee pool: at the endpoint's 2,000 cap. */
 const PAGE_SIZE = 2000;
+
+/** Narrow the grid by whether a company has any emailable person. */
+type StatusFilter = "all" | "email" | "noemail";
+/** How the cards are ordered. "people" (headcount, high to low) is the default. */
+type SortKey = "people" | "company";
 
 /** Map the effective tier to a 0-5 signal, strongest first. */
 function signalFromTier(tier: string | undefined): number {
@@ -143,6 +155,9 @@ function CompanyTile({
 
 export function AttendeesGrid({ slug }: { slug: string }) {
 	const [search, setSearch] = useState("");
+	const [tier, setTier] = useState("");
+	const [status, setStatus] = useState<StatusFilter>("all");
+	const [sort, setSort] = useState<SortKey>("people");
 	const [open, setOpen] = useState<Account | null>(null);
 
 	const list = useQuery({
@@ -150,9 +165,9 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 		queryFn: async () => {
 			// The cockpit caps a page at 2,000 companies, and a large show (WorkBoat
 			// has ~3,750 companies with people) exceeds that. Fetch page 1, then pull
-			// the remaining pages and concatenate, so every company shows and the
-			// stat tiles — which sum the loaded rows — count the whole roster rather
-			// than one page of it.
+			// the remaining pages and concatenate, so every company is loaded and the
+			// stat tiles and chip counts (computed client-side below) cover the
+			// whole roster rather than one page of it.
 			const base = {
 				data_batch: slug,
 				mode: "accounts",
@@ -183,21 +198,58 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 	const all: Account[] =
 		list.data && list.data.mode === "accounts" ? list.data.items : [];
 
-	const totals = useMemo(() => {
-		let people = 0;
+	// Chip counts over the WHOLE roster, so a chip always shows how many it would
+	// select, not how many are left after the other filters.
+	const facets = useMemo(() => {
+		const tierCounts = new Map<string, number>();
 		let withEmail = 0;
 		for (const a of all) {
-			people += a.contacts_count ?? 0;
-			withEmail += a.emails_count ?? 0;
+			const key = tierByKey(a.tier).key;
+			tierCounts.set(key, (tierCounts.get(key) ?? 0) + 1);
+			if ((a.emails_count ?? 0) > 0) withEmail += 1;
 		}
-		return { companies: all.length, people, withEmail };
+		// Only the tiers actually present, in the registry's canonical order.
+		const tiers = TIERS.filter((t) => (tierCounts.get(t.key) ?? 0) > 0);
+		return {
+			tierCounts,
+			tiers,
+			total: all.length,
+			withEmail,
+			noEmail: all.length - withEmail,
+		};
 	}, [all]);
 
 	const rows = useMemo(() => {
 		const q = search.trim().toLowerCase();
-		if (!q) return all;
-		return all.filter((a) => a.company.toLowerCase().includes(q));
-	}, [all, search]);
+		const out = all.filter((a) => {
+			if (q && !a.company.toLowerCase().includes(q)) return false;
+			if (tier && tierByKey(a.tier).key !== tier) return false;
+			const emails = a.emails_count ?? 0;
+			if (status === "email" && emails === 0) return false;
+			if (status === "noemail" && emails > 0) return false;
+			return true;
+		});
+		out.sort((a, b) => {
+			if (sort === "people") {
+				const d = (b.contacts_count ?? 0) - (a.contacts_count ?? 0);
+				if (d !== 0) return d;
+			}
+			return a.company.localeCompare(b.company);
+		});
+		return out;
+	}, [all, search, tier, status, sort]);
+
+	// The tiles follow the current filter, so "Companies" always matches what is
+	// on screen; with no filter they read the whole roster.
+	const totals = useMemo(() => {
+		let people = 0;
+		let withEmail = 0;
+		for (const a of rows) {
+			people += a.contacts_count ?? 0;
+			withEmail += a.emails_count ?? 0;
+		}
+		return { companies: rows.length, people, withEmail };
+	}, [rows]);
 
 	function exportCsv() {
 		const headers = [
@@ -225,16 +277,8 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 		<div className="flex flex-col gap-4 px-3 pb-6 sm:px-5">
 			{/* Stat tiles */}
 			<div className="grid grid-cols-3 gap-2">
-				<Stat
-					label="Companies"
-					value={totals.companies}
-					hint="Each company once."
-				/>
-				<Stat
-					label="People"
-					value={totals.people}
-					hint="Registered attendees."
-				/>
+				<Stat label="Companies" value={totals.companies} hint="Each company once." />
+				<Stat label="People" value={totals.people} hint="Registered attendees." />
 				<Stat
 					label="With email"
 					value={totals.withEmail}
@@ -242,25 +286,114 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 				/>
 			</div>
 
-			{/* Toolbar */}
-			<div className="flex flex-wrap items-center gap-3">
-				<div className="relative w-full sm:w-72">
-					<Search className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-					<input
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						placeholder="Search company…"
-						className="h-9 w-full rounded-md border border-border bg-background ps-8 pe-3 text-sm"
-					/>
+			{/* Toolbar: the same controls the Exhibitors table has. */}
+			<div className="flex flex-col gap-3">
+				<div className="flex flex-wrap items-center gap-3">
+					<div className="relative w-full sm:w-72">
+						<Search className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+						<input
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							placeholder="Search company…"
+							className="h-9 w-full rounded-md border border-border bg-background ps-8 pe-3 text-sm"
+						/>
+					</div>
+
+					{/* Sort + export, pushed to the end on wider screens. */}
+					<div className="flex items-center gap-2 sm:ms-auto">
+						<div className="inline-flex rounded-md border border-border p-0.5 text-xs">
+							{(
+								[
+									["people", "Most people"],
+									["company", "A-Z"],
+								] as [SortKey, string][]
+							).map(([key, label]) => (
+								<button
+									key={key}
+									type="button"
+									onClick={() => setSort(key)}
+									className={cn(
+										"rounded px-2.5 py-1 transition-colors",
+										sort === key
+											? "bg-foreground text-background"
+											: "text-muted-foreground hover:text-foreground",
+									)}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+						<button
+							type="button"
+							onClick={exportCsv}
+							disabled={rows.length === 0}
+							className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"
+						>
+							Export CSV
+						</button>
+					</div>
 				</div>
-				<button
-					type="button"
-					onClick={exportCsv}
-					disabled={rows.length === 0}
-					className="ms-auto inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"
-				>
-					Export CSV
-				</button>
+
+				<div className="flex flex-wrap items-center gap-1.5">
+					{/* Tier chips */}
+					<button
+						type="button"
+						onClick={() => setTier("")}
+						className={cn(
+							"rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+							tier === ""
+								? "border-foreground bg-foreground text-background"
+								: "border-border text-muted-foreground hover:bg-muted",
+						)}
+					>
+						All tiers {facets.total.toLocaleString()}
+					</button>
+					{facets.tiers.map((t) => (
+						<button
+							key={t.key}
+							type="button"
+							onClick={() => setTier(tier === t.key ? "" : t.key)}
+							title={t.hint}
+							className={cn(
+								"inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all",
+								t.chipClass,
+								tier === t.key
+									? "ring-2 ring-foreground/30"
+									: "opacity-80 hover:opacity-100",
+							)}
+						>
+							{t.label}
+							<span className="tabular-nums">
+								{(facets.tierCounts.get(t.key) ?? 0).toLocaleString()}
+							</span>
+						</button>
+					))}
+
+					<span className="mx-1 h-5 w-px self-center bg-border" />
+
+					{/* Email-status filters: "Needs email" is the enrichment worklist. */}
+					{(
+						[
+							["all", "All", facets.total],
+							["email", "With email", facets.withEmail],
+							["noemail", "Needs email", facets.noEmail],
+						] as [StatusFilter, string, number][]
+					).map(([key, label, count]) => (
+						<button
+							key={key}
+							type="button"
+							onClick={() => setStatus(key)}
+							className={cn(
+								"rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+								status === key
+									? "border-foreground bg-foreground text-background"
+									: "border-border text-muted-foreground hover:bg-muted",
+							)}
+						>
+							{label} {count.toLocaleString()}
+						</button>
+					))}
+				</div>
 			</div>
 
 			{/* Grid */}
@@ -278,7 +411,7 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 				<p className="text-sm text-muted-foreground">
 					{all.length === 0
 						? "No attendees have been loaded for this show yet."
-						: "No companies match that search."}
+						: "No companies match these filters."}
 				</p>
 			) : (
 				<div
