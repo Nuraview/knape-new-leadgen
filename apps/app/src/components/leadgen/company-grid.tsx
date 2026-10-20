@@ -40,6 +40,36 @@ type StatusFilter = "all" | "email" | "noemail";
 /** How the cards are ordered. "people" (headcount, high to low) is the default. */
 type SortKey = "people" | "company";
 
+/**
+ * Fetch one page of the pool, retried a few times with a short backoff.
+ *
+ * The roster is loaded as several pages, and a single dropped request (a cold
+ * proxy instance, a backend restart, a momentary network blip) would otherwise
+ * fail the whole query and blank an entire grid that is really fine. Retrying
+ * the one page that stumbled keeps the view up without a manual refresh.
+ */
+async function fetchAccountsPage(
+	base: Record<string, string | number>,
+	page: number,
+	attempts = 3,
+): Promise<AccountsResponse> {
+	let lastErr: unknown;
+	for (let i = 0; i < attempts; i++) {
+		try {
+			return await leadgen.get<AccountsResponse>("/api/accounts", {
+				...base,
+				page,
+			});
+		} catch (err) {
+			lastErr = err;
+			if (i < attempts - 1) {
+				await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+			}
+		}
+	}
+	throw lastErr;
+}
+
 /** Map the effective tier to a 0-5 signal, strongest first. */
 function signalFromTier(tier: string | undefined): number {
 	switch ((tier ?? "").toUpperCase()) {
@@ -167,32 +197,33 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 			// has ~3,750 companies with people) exceeds that. Fetch page 1, then pull
 			// the remaining pages and concatenate, so every company is loaded and the
 			// stat tiles and chip counts (computed client-side below) cover the
-			// whole roster rather than one page of it.
-			const base = {
+			// whole roster rather than one page of it. Each page is retried on its
+			// own, so a single flaky request does not take down the whole grid.
+			const base: Record<string, string | number> = {
 				data_batch: slug,
 				mode: "accounts",
 				contact_filter: "has",
 				min_icp: 0,
 				sort: "icp",
 				page_size: PAGE_SIZE,
-			} as const;
-			const first = await leadgen.get<AccountsResponse>("/api/accounts", {
-				...base,
-				page: 1,
-			});
+			};
+			const first = await fetchAccountsPage(base, 1);
 			if (first.mode !== "accounts" || first.pages <= 1) return first;
 			const rest = await Promise.all(
 				Array.from({ length: first.pages - 1 }, (_, i) =>
-					leadgen.get<AccountsResponse>("/api/accounts", {
-						...base,
-						page: i + 2,
-					}),
+					fetchAccountsPage(base, i + 2),
 				),
 			);
 			const items = [...first.items];
 			for (const r of rest) if (r.mode === "accounts") items.push(...r.items);
 			return { ...first, items };
 		},
+		// The roster rarely changes within a session, and re-pulling several MB on
+		// every tab focus is what surfaced the transient "Failed to fetch". Hold
+		// the result and let the user refresh deliberately.
+		staleTime: 5 * 60 * 1000,
+		refetchOnWindowFocus: false,
+		retry: 1,
 	});
 
 	const all: Account[] =
@@ -396,6 +427,21 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 				</div>
 			</div>
 
+			{/* A refresh failed but we still have the last roster: keep showing it. */}
+			{list.error && all.length > 0 ? (
+				<p className="text-xs text-muted-foreground">
+					Showing the roster from the last successful load; the latest refresh
+					did not complete.{" "}
+					<button
+						type="button"
+						onClick={() => list.refetch()}
+						className="underline hover:text-foreground"
+					>
+						Retry
+					</button>
+				</p>
+			) : null}
+
 			{/* Grid */}
 			{list.isLoading ? (
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -403,9 +449,16 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 						<Skeleton key={i} className="h-36 w-full rounded-xl" />
 					))}
 				</div>
-			) : list.error ? (
+			) : list.error && all.length === 0 ? (
 				<p className="text-sm text-destructive">
-					Could not load attendees: {(list.error as Error).message}
+					Could not load attendees: {(list.error as Error).message}{" "}
+					<button
+						type="button"
+						onClick={() => list.refetch()}
+						className="underline hover:text-foreground"
+					>
+						Retry
+					</button>
 				</p>
 			) : rows.length === 0 ? (
 				<p className="text-sm text-muted-foreground">
