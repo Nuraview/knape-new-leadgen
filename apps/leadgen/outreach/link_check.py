@@ -25,6 +25,7 @@ import ssl
 import urllib.request
 from typing import Any
 
+from outreach import brand
 from outreach.messaging_angles import ANGLES, APPROVED_LINKS, render_angle_steps
 
 _URL = re.compile(r"https?://[^\s<>\")]+")
@@ -60,7 +61,7 @@ def template_urls() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for angle in ANGLES:
         found: list[str] = []
-        for step in render_angle_steps(angle, lead, "Dan Rigby"):
+        for step in render_angle_steps(angle, lead, brand.sender_name()):
             for u in _URL.findall(step.get("body") or ""):
                 u = u.rstrip(".,);:")
                 if u not in found:

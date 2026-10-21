@@ -10,7 +10,7 @@ import json
 import os
 from pathlib import Path
 
-from outreach import outreach_store
+from outreach import brand, outreach_store
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -29,7 +29,7 @@ def seed_default_inboxes() -> int:
     n = 0
     for email, pw in creds.items():
         outreach_store.upsert_inbox({
-            "email": email, "domain": domain, "from_name": "Dan Rigby",
+            "email": email, "domain": domain, "from_name": brand.sender_name(),
             "smtp_host": host, "smtp_port": 465, "smtp_ssl": 1,
             "smtp_user": email, "smtp_password": pw,
             "imap_host": host, "imap_port": 993, "daily_cap": 25,

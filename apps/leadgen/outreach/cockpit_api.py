@@ -3514,7 +3514,7 @@ def emails_angles(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]
     gaps = followup_gap_days() or [3, 5, 7]
     out = []
     for a in ANGLES:
-        steps = render_angle_steps(a, sample, "Dan Rigby")
+        steps = render_angle_steps(a, sample, brand.sender_name())
         out.append({
             "key": a["key"],
             "name": a["name"],

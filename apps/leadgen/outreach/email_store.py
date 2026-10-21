@@ -648,11 +648,11 @@ def email_preview(step_id: int) -> dict[str, Any] | None:
         try:  # render exactly what the recipient saw (greeting + copy + signature)
             import re as _re
 
-            from outreach.email_sender import _body_to_html, _strip_body_links
+            from outreach.email_sender import _body_to_html, _sender_name, _strip_body_links
 
             b = _strip_body_links(d.get("body") or "")
             b = _re.sub(r"^(hi|hey|hello)\b", "Hey", b, count=1, flags=_re.IGNORECASE)
-            d["html"] = _body_to_html(b, d.get("from_email") or "", "Dan Rigby")
+            d["html"] = _body_to_html(b, d.get("from_email") or "", _sender_name())
         except Exception:  # noqa: BLE001
             d["html"] = ""
         return d
