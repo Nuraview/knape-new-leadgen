@@ -46,8 +46,25 @@ PLACEHOLDER_COMPANIES = {
 }
 
 
+# Spellings of one organisation that a roster's free-text company box splits
+# into separate companies. Keyed by the name reduced to letters only, so case,
+# dots and spaces do not matter. Sub-units ("USCG Sector New Orleans"),
+# retirees and contractors are deliberately not here: they are not the same
+# account.
+COMPANY_ALIASES = {
+    "unitedstatescoastguard": "U.S. Coast Guard",
+    "uscoastguard": "U.S. Coast Guard",
+    "uscg": "U.S. Coast Guard",
+    "coastguard": "U.S. Coast Guard",
+}
+
+
 def _alpha(s: str) -> str:
     return re.sub(r"[^a-z]", "", s.lower())
+
+
+def canonical_company(company: str) -> str:
+    return COMPANY_ALIASES.get(_alpha(company), company)
 
 
 def is_placeholder_company(company: str) -> bool:
@@ -79,6 +96,7 @@ def load_attendees(
         if is_placeholder_company(company):
             dropped_placeholder += 1
             continue
+        company = canonical_company(company)
         person = (r.get("person") or "").strip()
         email = (r.get("email") or "").strip()
         title = (r.get("title") or "").strip()
