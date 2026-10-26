@@ -43,10 +43,13 @@ export function TierLegend({ className }: { className?: string }) {
 			</summary>
 			<div className="mt-2 max-w-3xl space-y-1.5 rounded-md border border-border bg-muted/30 p-3">
 				<p className="text-muted-foreground">
-					Each company gets a fit score from 0 to 10 for how closely it
-					matches the kind of customer we sell to (the "ICP", ideal customer
-					profile). The tier puts that score into plain words. On the
-					attendee cards, the five bars show the tier too.
+					Companies are researched one by one: an AI researcher looks each
+					up on the web and records what it does, how it relates to Knape
+					(customer, equipment maker, partner, competitor or none of these)
+					and how well it fits what Knape sells. The tier follows from those
+					answers by the fixed rules below; opening a company shows the
+					research notes. A company not researched yet stays T4 Enrich. The
+					five bars on a card show its tier.
 				</p>
 				<ul className="space-y-1">
 					{TIERS.map((t) => (

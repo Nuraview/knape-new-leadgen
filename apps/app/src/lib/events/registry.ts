@@ -94,58 +94,68 @@ const ZINC =
 	"bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30";
 
 // `hint` is client-facing: it is the tooltip on every tier chip and the text of
-// the "What do the tiers mean?" legend. The score bands mirror the fallback in
-// the cockpit's _effective_tier_sql; a tier set by hand or by the classifier
-// overrides the score, which is why each hint says "or".
+// the "What do the tiers mean?" legend.
+//
+// The hints describe how tiers were ACTUALLY assigned, not the score fallback
+// in the cockpit's _effective_tier_sql: every WorkBoat 2026 company carries an
+// icp_score of 0, and its tier was written by a research pass on 24 Oct 2026.
+// That pass had an AI researcher look each company up on the web and record
+// what it does, its relationship to Knape (end customer, OEM, partner
+// manufacturer, competitor, other) and a fit rating (Excellent / Good / Weak /
+// Poor). The tier then follows by fixed rules: partner -> T3, competitor -> X,
+// school/university name or domain -> Academic, Excellent -> T0 with 3+ people
+// registered else T1, Good (or Weak end customer/OEM) -> T2, rest -> Other.
+// The per-company reason is stored in accounts.spark_brief and shown in the
+// company sheet. Keep these hints in step with that rule set.
 export const TIERS: TierDef[] = [
 	{
 		key: "T0-HOT",
 		label: "T0 Hot",
-		hint: "Best fit: fit score 8–10 out of 10, or marked hot by hand. Contact these first.",
+		hint: "Excellent fit (shipyard, vessel or fleet operator, naval architect, marine engineering firm, marine HVAC or mechanical contractor, offshore operator) with 3 or more people registered at the show. Contact first.",
 		chipClass: ROSE,
 	},
 	{
 		key: "T1-WARM",
 		label: "T1 Warm",
-		hint: "Strong fit: fit score 6–7.9. Contact after the hot ones.",
+		hint: "Same excellent fit as T0, but fewer than 3 people registered at the show.",
 		chipClass: AMBER,
 	},
 	{
 		key: "T2-ICP",
 		label: "T2 ICP",
-		hint: "Matches the ideal customer profile (ICP) at a basic level: fit score 4–5.9. Worth contacting, lower priority.",
+		hint: "Good fit with the ideal customer profile (ICP): a plausible buyer with a real need for fans, blowers, heaters or dampers, or an equipment maker that builds them into its products. Also smaller or indirect buyers.",
 		chipClass: EMERALD,
 	},
 	{
 		key: "T3-PARTNER",
 		label: "T3 Partner",
-		hint: "A partner, distributor or channel, not a direct buyer. Only ever set by hand.",
+		hint: "A manufacturer Knape already represents. Not a prospect.",
 		chipClass: VIOLET,
 	},
 	{
 		key: "T4-UNKNOWN",
 		label: "T4 Enrich",
-		hint: "Not enough information to judge yet (fit score under 4, or none). Needs research before it can be ranked.",
+		hint: "Not researched yet, so there is nothing to rank it on.",
 		chipClass: SKY,
 	},
 	{
 		key: "X-COMPETITOR",
 		label: "Competitor",
-		hint: "A competitor. Marked to keep out of outreach.",
+		hint: "Another air-movement or ventilation rep or distributor, or a maker of competing fans, blowers, dampers, louvers or heaters.",
 		chipClass: ZINC,
 		excluded: true,
 	},
 	{
 		key: "X-ACADEMIC",
 		label: "Academic",
-		hint: "A university or research body. Marked to keep out of outreach.",
+		hint: "A school, college or university, going by its name or website.",
 		chipClass: ZINC,
 		excluded: true,
 	},
 	{
 		key: "X-OTHER",
 		label: "Other",
-		hint: "Not a sales target (for example a government agency). Marked to keep out of outreach.",
+		hint: "No plausible need for the equipment: insurance, finance, law, staffing, media, software, associations, and government agencies that buy through procurement contracts.",
 		chipClass: ZINC,
 		excluded: true,
 	},

@@ -74,6 +74,17 @@ export function CompanyDetailSheet({
 				</SheetHeader>
 
 				<div className="flex-1 overflow-y-auto px-4 pb-6">
+					{/* The research notes behind the tier: what the company does and
+					    why it does or does not fit. Exhibitors that already had a
+					    directory blurb keep that text instead. */}
+					{account?.company_profile ? (
+						<div className="mb-4 rounded-md border border-border bg-muted/30 p-3 text-sm">
+							<div className="mb-1 font-medium text-xs text-muted-foreground">
+								About this company{account.industry ? ` · ${account.industry}` : ""}
+							</div>
+							<p>{account.company_profile}</p>
+						</div>
+					) : null}
 					{people.isLoading ? (
 						<div className="flex flex-col gap-2">
 							{[0, 1, 2, 3].map((i) => (
