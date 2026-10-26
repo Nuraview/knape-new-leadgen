@@ -119,6 +119,12 @@ SETTINGS_REGISTRY: list[dict[str, Any]] = [
      "label": "Weekdays only",
      "help": "Hold sending on Saturday and Sunday. These are school staff, and a Saturday "
              "send is read on Monday underneath everything else that arrived first."},
+    {"key": "OUTREACH_AUTO_FIRST_EMAILS", "group": "Outreach", "type": "bool", "default": True,
+     "label": "Send first emails automatically",
+     "help": "Inside the send window, whatever the mailboxes have left after today's "
+             "follow-ups goes to never-contacted people from the main lead pool, spread "
+             "across the remaining hours. Show pools are never included. Off means first "
+             "emails only go out when a campaign is started by hand."},
     {"key": "OUTREACH_DAILY_SEND_CAP", "group": "Outreach", "type": "int", "default": 75,
      "label": "Total emails per day (all inboxes)",
      "help": "Global rolling 24h send limit across every inbox. Keep at or below the sum of "
@@ -175,7 +181,7 @@ _BY_KEY = {s["key"]: s for s in SETTINGS_REGISTRY}
 
 # Internal state keys (not client-facing; no env fallback).
 STATE_KEYS = ("SCRAPE_LAST_RUN_AT", "SCRAPE_LAST_RESULT", "ENRICH_DAY", "ENRICH_DAY_COUNT", "KEY_ALERTS",
-              "BOUNCE_SCAN_LAST", "REPLY_SCAN_LAST", "BOUNCE_SCAN_UIDS")
+              "BOUNCE_SCAN_LAST", "REPLY_SCAN_LAST", "BOUNCE_SCAN_UIDS", "AUTOFILL_LAST")
 
 
 def _coerce(spec: dict[str, Any] | None, raw: str | None) -> Any:

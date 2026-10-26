@@ -7,19 +7,24 @@ The client sets three knobs in the Emails > Dashboard UI and presses Send:
 
 Each batch: pull never-emailed leads, VALIDATE their addresses (syntax + MX +
 SMTP mailbox probe), drop the dead ones, send the good ones from the approved
-angle templates (rotating the rigby inboxes), then wait the interval. Progress
-is polled by the UI (a Refresh button) via ``campaign_status()`` — not a live
-stream. Runs as one background thread inside the API process.
+angle templates (inbox picked per sequence by ``pick_send_inbox``), then wait
+the interval. Progress is polled by the UI (a Refresh button) via
+``campaign_status()`` — not a live stream. Runs as one background thread
+inside the API process.
+
+``autofill_first_emails`` is the unattended half: the follow-up scheduler calls
+it every tick, and it spends whatever capacity follow-ups leave on first emails.
 """
 
 from __future__ import annotations
 
 import math
 import os
-import random
 import threading
 import time
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from outreach import db, email_store, email_runner, outreach_store
 from outreach.email_drafting import followup_gap_days
@@ -27,7 +32,6 @@ from outreach import brand
 from outreach.messaging_angles import get_angle, pick_angle, render_angle_steps
 from pipeline.email_validate import validate_many
 
-ROT = [2, 3, 4]                 # d.rigby@, drigby@, dan.rigby@
 WITHIN_BATCH_GAP = 10           # seconds between sends inside one batch
 
 # Generic front-office local-parts. These `info@district.org`-style addresses are
@@ -187,7 +191,13 @@ def validation_summary() -> dict[str, int]:
         c.close()
 
 
-def _pull_candidates(n: int) -> list[dict[str, Any]]:
+# Show pools (lead_source_bucket = 'event:<slug>') are worked through their own
+# per-show flow, not the general pool — the SEMICON West roster is tec5's list,
+# not this instance's, and must never be written to under this sender's name.
+_NOT_EVENT_SQL = "lower(COALESCE(a.lead_source_bucket,'')) NOT LIKE 'event:%'"
+
+
+def _pull_candidates(n: int, *, include_events: bool = True) -> list[dict[str, Any]]:
     """The next ``n`` people to write to, newest accounts first.
 
     Per-PERSON, capped at MAX_PER_ACCOUNT per organisation. The previous
@@ -195,11 +205,13 @@ def _pull_candidates(n: int) -> list[dict[str, Any]]:
     permanently once anyone there had been contacted, which is what made a
     pool of hundreds report as dozens.
     """
+    where = "" if include_events else f"WHERE {_NOT_EVENT_SQL}"
     c = db.connect()
     try:
         rows = c.execute(
             f"""
             {_CONTACT_CANDIDATES_SQL}
+            {where}
             ORDER BY a.id DESC LIMIT {int(n)}
             """
         ).fetchall()
@@ -326,7 +338,11 @@ def _build_sequence(lead: dict[str, Any], angle_override: str | None = None) -> 
 
 def _send_one(lead: dict[str, Any], angle_override: str | None = None) -> bool:
     sid = _build_sequence(lead, angle_override)
-    res = email_runner.start_sequence_send(sid, inbox_id=random.choice(ROT))
+    # No inbox_id: start_sequence_send picks this instance's least-used enabled
+    # inbox under its cap. This used to pass a random id from [2, 3, 4] — another
+    # client's three mailboxes — so on an instance without those ids the
+    # sequence got no inbox and fell back to the global SMTP config.
+    res = email_runner.start_sequence_send(sid)
     # Cap-deferred still counts as enrolled: the step stays pending and the
     # scheduler drains it — real per-inbox caps are respected, not rewritten.
     return res.get("sent", 0) >= 1 or res.get("capped", 0) >= 1
@@ -518,6 +534,108 @@ def stop_campaign() -> dict[str, Any]:
     return campaign_status()
 
 
+# --- Automatic first emails -------------------------------------------------
+#
+# The home page says "finding companies, writing the emails, sending and
+# following up all run automatically", and only the last of those was true:
+# nothing ever started a first email unless someone pressed Start on a
+# campaign. On 26 Oct the one mailbox spent 92 of its 135 on follow-ups and the
+# other 43 sat unused all day, with thousands of never-contacted people queued.
+#
+# Follow-ups keep priority: everything already queued to go out before today's
+# window closes is subtracted first, and only the remainder goes to new people,
+# paced across the hours left so the mailbox does not burst.
+_AUTOFILL_MAX_PER_TICK = 10
+_AUTOFILL: dict[str, Any] = {"last_run_at": None, "sent": 0, "room": 0, "reason": ""}
+
+
+def _autofill_enabled() -> bool:
+    try:
+        from outreach.app_settings import get_setting
+
+        return bool(get_setting("OUTREACH_AUTO_FIRST_EMAILS"))
+    except Exception:  # noqa: BLE001 — unreadable settings never start sending
+        return False
+
+
+def _queued_before(ts: float) -> int:
+    """Steps already scheduled to send before ``ts``: follow-ups and openers
+    of sequences that have started. They get the capacity first."""
+    c = db.connect()
+    try:
+        row = c.execute(
+            """
+            SELECT COUNT(*) AS n FROM email_steps st
+            JOIN email_sequences sq ON sq.id = st.sequence_id
+            WHERE st.status='pending' AND sq.status IN ('sending','sent')
+              AND st.scheduled_at IS NOT NULL AND st.scheduled_at <= ?
+            """,
+            (ts,),
+        ).fetchone()
+        return int(row["n"] or 0)
+    finally:
+        c.close()
+
+
+def _window_close_ts() -> float:
+    _start, end, _weekdays = email_runner.send_window()
+    now_et = datetime.now(ZoneInfo(email_runner.SEND_TZ))
+    if end >= 24:
+        return now_et.replace(hour=23, minute=59, second=59, microsecond=0).timestamp()
+    return now_et.replace(hour=end, minute=0, second=0, microsecond=0).timestamp()
+
+
+def autofill_first_emails(tick_sec: int = 300) -> dict[str, Any]:
+    """One pass: send first emails into whatever today's capacity follow-ups
+    leave. Called by the follow-up scheduler every ``tick_sec``."""
+
+    def _done(sent: int, room: int, reason: str) -> dict[str, Any]:
+        _AUTOFILL.update({"last_run_at": time.time(), "sent": sent, "room": room, "reason": reason})
+        return dict(_AUTOFILL)
+
+    if not _autofill_enabled():
+        return _done(0, 0, "off in Settings")
+    ok, why = email_runner.within_send_window()
+    if not ok:
+        return _done(0, 0, why)
+    if _STATE["status"] in ("running", "stopping"):
+        return _done(0, 0, "a campaign started by hand is running")
+
+    capacity = email_store.send_capacity()
+    if not capacity["mailboxes"]:
+        return _done(0, 0, "no enabled sending mailbox")
+    close_ts = _window_close_ts()
+    room = int(capacity["remaining"]) - _queued_before(close_ts)
+    if room <= 0:
+        return _done(0, 0, "today's capacity is used up (follow-ups go first)")
+
+    ticks_left = max(1.0, (close_ts - time.time()) / max(60, tick_sec))
+    n = min(room, _AUTOFILL_MAX_PER_TICK, math.ceil(room / ticks_left))
+
+    _init_validation_table()
+    leads = _pull_candidates(max(n * 4, n + 10), include_events=False)
+    if not leads:
+        return _done(0, room, "no never-emailed contacts left in the main pool")
+    to_check = [l["to_email"] for l in leads if not _cached_valid_known(l["to_email"])]
+    if to_check:
+        _store_validation(validate_many(to_check, smtp_probe=True))
+
+    sent = 0
+    for lead in leads:
+        if sent >= n:
+            break
+        if not _cached_valid(lead["to_email"]):
+            continue
+        try:
+            if _send_one(lead):
+                sent += 1
+        except Exception:  # noqa: BLE001 — one bad lead must not end the pass
+            pass
+        if sent < n:
+            time.sleep(WITHIN_BATCH_GAP)
+    return _done(sent, room, f"{sent} first email(s) sent; {max(0, room - sent)} left for today")
+
+
 def lead_funnel() -> dict[str, int]:
     """The full picture behind "leads remaining", so the dashboard can explain
     itself: total leads -> have a contact email -> already emailed -> fresh."""
@@ -544,6 +662,7 @@ def lead_funnel() -> dict[str, int]:
 def campaign_status() -> dict[str, Any]:
     s = dict(_STATE)
     s["validating"] = _validating.is_set()
+    s["autofill"] = dict(_AUTOFILL)
     try:
         s["pool_remaining"] = pool_remaining()
         s["validation"] = validation_summary()

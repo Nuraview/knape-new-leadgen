@@ -355,6 +355,14 @@ def _loop(interval_sec: int) -> None:
             process_due()
         except Exception:
             pass
+        # After the queue: follow-ups already due have taken their share of the
+        # cap, and first emails get only what is left.
+        try:
+            from outreach.campaign_sender import autofill_first_emails
+
+            autofill_first_emails(tick_sec=interval_sec)
+        except Exception as e:  # noqa: BLE001
+            _record_loop_error("AUTOFILL_LAST", e)
         try:
             from outreach.bounce_scan import scan_bounces
 
