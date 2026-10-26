@@ -23,6 +23,7 @@ in. The roster CSVs are personal data and are never committed.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import time
@@ -33,6 +34,7 @@ from outreach.cockpit_api import (
     _contact_kind_conf,
     _init_db,
     _title_role_rank,
+    decode_html_entities,
 )
 from utils.exclusions import normalize_company_key
 
@@ -87,19 +89,27 @@ def load_attendees(
     ``location``, and an optional ``extra`` dict kept verbatim in ``raw_json``.
     """
     _init_db()
+    # Names already in the pool are decoded first, so the decoded roster below
+    # matches them instead of creating "G & H Towing" beside "G &amp; H Towing".
+    if not dry_run:
+        decode_html_entities()
+
+    def _text(v: Any) -> str:
+        # Badge exports escape their free text ("Great Lakes Dredge &amp; Dock").
+        return html.unescape(str(v or "")).strip()
 
     dropped_placeholder = dropped_empty = duplicates = 0
     seen: set[tuple] = set()
     clean: list[dict[str, Any]] = []
     for r in rows:
-        company = (r.get("company") or "").strip()
+        company = _text(r.get("company"))
         if is_placeholder_company(company):
             dropped_placeholder += 1
             continue
         company = canonical_company(company)
-        person = (r.get("person") or "").strip()
+        person = _text(r.get("person"))
         email = (r.get("email") or "").strip()
-        title = (r.get("title") or "").strip()
+        title = _text(r.get("title"))
         if not person and not email:
             dropped_empty += 1
             continue
@@ -118,7 +128,7 @@ def load_attendees(
                 "email": email,
                 "phone": (r.get("phone") or "").strip(),
                 "status": (r.get("status") or "").strip(),
-                "location": (r.get("location") or "").strip(),
+                "location": _text(r.get("location")),
                 "extra": r.get("extra") or {},
             }
         )

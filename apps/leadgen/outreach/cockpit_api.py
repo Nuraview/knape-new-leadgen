@@ -664,6 +664,58 @@ def _init_db() -> None:
         conn.close()
 
 
+# Rows that still carry an HTML entity (&amp;, &#39;, &quot; …). The WorkBoat
+# badge export escapes its free text, so "G & H Towing" arrived as
+# "G &amp; H Towing" and the CRM showed the entity verbatim.
+_ENTITY_RE_SQL = "'&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z]+);'"
+
+
+def decode_html_entities() -> dict[str, int]:
+    """Rewrite entity-escaped company names and contact names/titles as plain
+    text. Idempotent: only rows still matching an entity are touched.
+
+    A company is left as-is when its decoded name would collide with another
+    account on the (company, website) unique index; those are counted, not
+    merged, because merging moves contacts and sequences between accounts.
+    """
+    import html
+
+    out = {"accounts": 0, "account_collisions": 0, "contacts": 0}
+    conn = _connect()
+    try:
+        for row in conn.execute(
+            f"SELECT id, company, website FROM accounts WHERE company ~ {_ENTITY_RE_SQL}"
+        ).fetchall():
+            fixed = html.unescape(str(row["company"])).strip()
+            if fixed == row["company"]:
+                continue
+            if row["website"] is not None and conn.execute(
+                "SELECT 1 FROM accounts WHERE company = ? AND website = ? AND id <> ?",
+                (fixed, row["website"], row["id"]),
+            ).fetchone():
+                out["account_collisions"] += 1
+                continue
+            conn.execute("UPDATE accounts SET company = ? WHERE id = ?", (fixed, row["id"]))
+            out["accounts"] += 1
+        for row in conn.execute(
+            "SELECT id, person_name, job_title FROM contacts "
+            f"WHERE person_name ~ {_ENTITY_RE_SQL} OR job_title ~ {_ENTITY_RE_SQL}"
+        ).fetchall():
+            conn.execute(
+                "UPDATE contacts SET person_name = ?, job_title = ? WHERE id = ?",
+                (
+                    html.unescape(row["person_name"]) if row["person_name"] else row["person_name"],
+                    html.unescape(row["job_title"]) if row["job_title"] else row["job_title"],
+                    row["id"],
+                ),
+            )
+            out["contacts"] += 1
+        conn.commit()
+        return out
+    finally:
+        conn.close()
+
+
 # --- Jev semantic layer: evidence capture, provenance store, state builder ----
 def save_account_page(account_id: int, url: str, text: str, kind: str = "page") -> None:
     """Persist one crawled page's text for later semantic classification.
@@ -1496,6 +1548,12 @@ def _startup() -> None:
     except Exception as e:  # noqa: BLE001
         have = 0
         print(f"Cockpit: account-count probe failed: {e}", flush=True)
+    try:
+        fixed = decode_html_entities()
+        if any(fixed.values()):
+            print(f"Cockpit: decoded HTML entities in names: {fixed}", flush=True)
+    except Exception as e:  # noqa: BLE001 — a cosmetic repair never blocks boot
+        print(f"Cockpit: entity repair skipped: {e}", flush=True)
     xp = _xlsx_path()
     if have == 0 and xp.is_file():
         try:
