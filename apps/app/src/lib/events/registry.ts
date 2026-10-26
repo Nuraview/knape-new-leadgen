@@ -93,50 +93,59 @@ const SKY = "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30";
 const ZINC =
 	"bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30";
 
+// `hint` is client-facing: it is the tooltip on every tier chip and the text of
+// the "What do the tiers mean?" legend. The score bands mirror the fallback in
+// the cockpit's _effective_tier_sql; a tier set by hand or by the classifier
+// overrides the score, which is why each hint says "or".
 export const TIERS: TierDef[] = [
 	{
 		key: "T0-HOT",
 		label: "T0 Hot",
-		hint: "Top-fit lead, contact first",
+		hint: "Best fit: fit score 8–10 out of 10, or marked hot by hand. Contact these first.",
 		chipClass: ROSE,
 	},
-	{ key: "T1-WARM", label: "T1 Warm", hint: "Strong fit", chipClass: AMBER },
+	{
+		key: "T1-WARM",
+		label: "T1 Warm",
+		hint: "Strong fit: fit score 6–7.9. Contact after the hot ones.",
+		chipClass: AMBER,
+	},
 	{
 		key: "T2-ICP",
 		label: "T2 ICP",
-		hint: "In the ideal-customer profile",
+		hint: "Matches the ideal customer profile (ICP) at a basic level: fit score 4–5.9. Worth contacting, lower priority.",
 		chipClass: EMERALD,
 	},
 	{
 		key: "T3-PARTNER",
 		label: "T3 Partner",
-		hint: "Partner or channel",
+		hint: "A partner, distributor or channel, not a direct buyer. Only ever set by hand.",
 		chipClass: VIOLET,
 	},
 	{
 		key: "T4-UNKNOWN",
 		label: "T4 Enrich",
-		hint: "Not yet classified, needs enrichment",
+		hint: "Not enough information to judge yet (fit score under 4, or none). Needs research before it can be ranked.",
 		chipClass: SKY,
 	},
 	{
 		key: "X-COMPETITOR",
 		label: "Competitor",
-		hint: "Kept out of outreach",
+		hint: "A competitor. Marked to keep out of outreach.",
 		chipClass: ZINC,
 		excluded: true,
 	},
 	{
 		key: "X-ACADEMIC",
 		label: "Academic",
-		hint: "Kept out of outreach",
+		hint: "A university or research body. Marked to keep out of outreach.",
 		chipClass: ZINC,
 		excluded: true,
 	},
 	{
 		key: "X-OTHER",
 		label: "Other",
-		hint: "Kept out of outreach",
+		hint: "Not a sales target (for example a government agency). Marked to keep out of outreach.",
 		chipClass: ZINC,
 		excluded: true,
 	},

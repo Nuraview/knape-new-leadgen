@@ -24,7 +24,7 @@ import { ExternalLink, Mail, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CompanyDetailSheet } from "@/components/leadgen/company-detail-sheet";
 import { SignalMeter } from "@/components/leadgen/signal-meter";
-import { TierChip } from "@/components/leadgen/tier-chip";
+import { TierChip, TierLegend } from "@/components/leadgen/tier-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { leadgen } from "@/fetchers/leadgen/client";
 import type { Account, AccountsResponse } from "@/fetchers/leadgen/types";
@@ -425,6 +425,7 @@ export function AttendeesGrid({ slug }: { slug: string }) {
 						</button>
 					))}
 				</div>
+				<TierLegend />
 			</div>
 
 			{/* A refresh failed but we still have the last roster: keep showing it. */}

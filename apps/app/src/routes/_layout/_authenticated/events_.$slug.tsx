@@ -27,7 +27,7 @@ import { useState } from "react";
 import Layout from "@/components/common/layout";
 import { AttendeesGrid } from "@/components/leadgen/company-grid";
 import { LeadsPager } from "@/components/leadgen/leads-pager";
-import { TierChip } from "@/components/leadgen/tier-chip";
+import { TierChip, TierLegend } from "@/components/leadgen/tier-chip";
 import PageTitle from "@/components/page-title";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -317,6 +317,7 @@ function RouteComponent() {
 							</button>
 						))}
 					</div>
+					<TierLegend />
 				</div>
 
 				{/* Table */}
