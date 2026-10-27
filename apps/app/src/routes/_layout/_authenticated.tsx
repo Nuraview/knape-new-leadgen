@@ -77,8 +77,8 @@ export const Route = createFileRoute("/_layout/_authenticated")({
         Same reasoning as the dialer runtime above: mounted on the shell so
         it covers every authenticated route by construction. It reads the
         current path itself, so the answer to "who should I call" can differ
-        on Leads and on Outreach. Hides itself when the server reports no
-        DEEPSEEK_API_KEY rather than offering a button that 503s.
+        on Leads and on Outreach. Shows a "needs its API key" note when the
+        server reports no ANTHROPIC_API_KEY rather than a chat that 503s.
       */}
       <AssistantPanel />
       {/*

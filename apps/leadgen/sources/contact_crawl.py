@@ -1,16 +1,17 @@
-"""Contact spine: crawl school/coalition websites for public staff contacts.
+"""Contact spine: crawl a company's own website for public team/leadership contacts.
 
 Waterfall per account:
-1. Locate a staff/athletics page on the org's own site (URL heuristics, then
+1. Locate a team/leadership/contact page on the org's own site (URL heuristics, then
    Serper ``site:<domain> ...`` when a key is configured).
-2. Gemini-extract ``[{name, title, email, phone}]`` from the page text, keeping
-   decision-maker roles (AD / athletics / principal / prevention staff).
+2. Claude-extract ``[{name, title, email, phone}]`` from the page text, keeping
+   Knape buyer roles (engineering, facilities/plant/operations, vessel/fleet
+   superintendents, project managers, purchasing, owners/executives).
 3. Serper LinkedIn x-ray: ``site:linkedin.com/in "<title>" "<org>"`` → top hit.
 4. Email pattern inference from other public emails on the same domain, marked
    ``pattern_guess`` (verify later; never sent unverified).
 
 Results cache to ``outreach_data/contacts_cache.json`` so re-runs are free.
-All data scraped is public staff-directory information.
+All data scraped is public team-directory information.
 """
 
 from __future__ import annotations
@@ -23,8 +24,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from config import GEMINI_MODEL, get_llm_api_key
-from outreach.gemini_llm import gemini_generate_text
+from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
 from utils.http import get_text
 from utils.serper import serper_enabled, serper_search
 
@@ -32,36 +32,43 @@ _CACHE_PATH = Path(__file__).resolve().parent.parent / "outreach_data" / "contac
 
 # (hint substring, priority weight) — higher = more likely a real people directory.
 _STAFF_PATH_HINTS: tuple[tuple[str, int], ...] = (
-    ("searchable-directory", 10),
-    ("staff-directory", 10),
-    ("staff_directory", 10),
+    ("leadership", 10),
+    ("our-team", 10),
+    ("management", 9),
     ("directory", 9),
-    ("athletic", 8),
-    ("athletics", 8),
-    ("our-team", 7),
-    ("faculty", 6),
-    ("administration", 6),
+    ("executive", 8),
+    ("our-people", 8),
+    ("team", 7),
+    ("people", 6),
+    ("about-us", 5),
     ("contact-us", 5),
     ("contact", 4),
+    ("about", 3),
     ("staff", 2),  # weak: floods with resource pages ("for-staff/*")
 )
+# Knape Associates' buyers: who specifies, maintains, runs or buys industrial air-movement gear.
 _ROLE_KEEP = re.compile(
-    r"athletic|activities director|principal|superintendent|prevention|coalition|wellness|"
-    r"student assistance|coordinator|executive director|program (manager|director)",
+    r"engineer|naval architect|facilit|plant manager|maintenance|operations|superintendent|"
+    r"port captain|project manager|construction manager|purchasing|procurement|buyer|"
+    r"supply chain|owner|president|general manager|\bceo\b|\bcoo\b|chief operating|founder",
     re.I,
 )
 
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 _EXTRACT_SYSTEM = (
-    "You extract STAFF CONTACTS from school or nonprofit web page text. "
+    "You extract TEAM CONTACTS from a company's web page text (industrial, marine/offshore, "
+    "oil & gas, power, wastewater, manufacturing, contracting, engineering firms). "
     "Return ONLY a JSON object: {\"contacts\": [{\"name\": str, \"title\": str, "
     "\"email\": str, \"phone\": str}]}. Include only people whose role relates to: "
-    "athletics (Athletic Director, Activities Director, athletics coordinator, head coach), "
-    "school leadership (Principal, Superintendent), or prevention/wellness programs "
-    "(prevention coordinator/manager/director, coalition coordinator/director, executive director, "
-    "student assistance, wellness). Use empty strings for unknown fields. Never invent emails "
-    "or names not present in the text. Max 6 contacts."
+    "engineering (design, project, mechanical, marine, port or HVAC engineer, naval architect, "
+    "engineering manager, chief engineer), facilities/plant/maintenance/operations "
+    "(facilities, plant, maintenance or operations manager/director/superintendent), vessel "
+    "operations (vessel, fleet, technical or marine superintendent, port captain), project "
+    "management (project or construction manager), procurement (purchasing, procurement, "
+    "buyer, supply chain), or leadership (owner, founder, president, CEO, COO, general manager, "
+    "VP of operations). Use empty strings for unknown fields. Never invent emails or names not "
+    "present in the text. Max 6 contacts."
 )
 
 
@@ -118,7 +125,7 @@ def _fetch_page(url: str) -> _TextExtractor | None:
 
 
 def _candidate_staff_urls(base_url: str, home: _TextExtractor | None) -> list[str]:
-    """Candidate URLs for the staff/athletics page, ranked by hint quality."""
+    """Candidate URLs for the team/leadership page, ranked by hint quality."""
     parsed = urlparse(base_url if base_url.startswith("http") else f"http://{base_url}")
     root = f"{parsed.scheme}://{parsed.netloc}"
     scored: dict[str, int] = {}
@@ -134,19 +141,16 @@ def _candidate_staff_urls(base_url: str, home: _TextExtractor | None) -> list[st
             absolute = urljoin(base_url, href).split("#")[0]
             netloc = urlparse(absolute).netloc
             same_domain = parsed.netloc.split(".")[-2:] == netloc.split(".")[-2:]
-            # Follow cross-domain links only when they're clearly the athletics site
-            # (rSchoolToday / VNN / 8to18 platforms list the AD in plain HTML).
-            is_athletics_site = "athletic" in netloc or "athletics" in blob
-            if netloc != parsed.netloc and not same_domain and not is_athletics_site:
+            # Same organization only: a company's people are on its own (sub)domain.
+            if netloc != parsed.netloc and not same_domain:
                 continue
-            if netloc != parsed.netloc and is_athletics_site:
-                weight = max(weight, 8)
-            # Anchor text that names a role directly is the strongest signal.
-            if anchor and ("athletic director" in anchor.lower() or "directory" in anchor.lower()):
+            # Anchor text that names the page directly is the strongest signal.
+            low_anchor = (anchor or "").lower()
+            if any(k in low_anchor for k in ("leadership", "our team", "management", "directory")):
                 weight += 3
             scored[absolute] = max(scored.get(absolute, 0), weight)
     ordered = [u for u, _ in sorted(scored.items(), key=lambda kv: -kv[1])]
-    for path in ("/athletics", "/staff-directory", "/directory", "/athletics/staff", "/staff"):
+    for path in ("/leadership", "/our-team", "/about/leadership", "/team", "/about-us", "/contact"):
         u = root + path
         if u not in scored:
             ordered.append(u)
@@ -156,25 +160,22 @@ def _candidate_staff_urls(base_url: str, home: _TextExtractor | None) -> list[st
 def _serper_staff_page(domain: str, org_name: str) -> list[str]:
     if not serper_enabled():
         return []
-    results = serper_search(f'site:{domain} "athletic director" OR "staff directory"', num=5)
+    results = serper_search(
+        f'site:{domain} leadership OR "our team" OR "management team" OR engineering', num=5
+    )
     return [r["link"] for r in results][:3]
 
 
 def _extract_contacts_llm(page_text: str, org_name: str) -> list[dict]:
-    api_key = get_llm_api_key()
-    if not api_key or not page_text.strip():
+    if not claude_enabled() or not page_text.strip():
         return []
     try:
-        content = gemini_generate_text(
-            api_key=api_key,
-            model=GEMINI_MODEL,
+        content = claude_generate_text(
             system_instruction=_EXTRACT_SYSTEM,
             user_text=json.dumps({"organization": org_name, "page_text": page_text[:14000]}),
-            temperature=0.1,
+            max_tokens=2048,
             timeout=90.0,
         )
-        from outreach.gemini_llm import parse_json_object
-
         parsed = parse_json_object(content)
     except Exception as e:  # noqa: BLE001
         print(f"    Warning: contact extraction failed for {org_name}: {str(e)[:100]}")
@@ -289,21 +290,8 @@ def crawl_account_contacts(company: str, website: str, is_school: bool) -> dict[
                 continue
             txt = page.text
             raw_emails += _EMAIL_RE.findall(txt)
-            if _ROLE_KEEP.search(txt) and "athletic" in txt.lower():
+            if _ROLE_KEEP.search(txt):
                 page_texts.append(txt)
-            elif _ROLE_KEEP.search(txt):
-                page_texts.append(txt)
-            else:
-                # Athletics-platform homepage rarely names the AD — hop one level to
-                # its own staff/contact page.
-                netloc = urlparse(url).netloc.lower()
-                if "athletic" in netloc:
-                    for sub in ("/staff", "/staff-directory", "/contact", "/about", "/coaches"):
-                        sp = _fetch_page(f"{urlparse(url).scheme}://{netloc}{sub}")
-                        if sp is not None and _ROLE_KEEP.search(sp.text):
-                            raw_emails += _EMAIL_RE.findall(sp.text)
-                            page_texts.append(sp.text)
-                            break
             if len(page_texts) >= 2:
                 break
         if home is not None and not page_texts and _ROLE_KEEP.search(home.text):
@@ -320,7 +308,8 @@ def crawl_account_contacts(company: str, website: str, is_school: bool) -> dict[
                     c["email"] = guess
                     c["email_status"] = "pattern_guess"
 
-    title_hint = "Athletic Director" if is_school else "Prevention Coordinator"
+    # Institutions buy through facilities; companies through operations/engineering.
+    title_hint = "Director of Facilities" if is_school else "Operations Manager"
     best_name = result["contacts"][0]["name"] if result["contacts"] else ""
     result["linkedin_url"] = _linkedin_xray(company, best_name or title_hint)
     # Expose the resolved site so callers can backfill an account that had no website.

@@ -1,5 +1,5 @@
 /**
- * The in-app assistant — DeepSeek, with tools, server-side.
+ * The in-app assistant — Claude (Anthropic Messages API), with tools, server-side.
  *
  * Answers questions about THIS instance's live data rather than in general:
  * "who should I call today", "why is nothing sending", "how many leads did we
@@ -8,7 +8,7 @@
  *
  * WHY THE MODEL NEVER RUNS IN THE BROWSER
  *
- * DEEPSEEK_API_KEY stays in this process. A key shipped to the client is a key
+ * ANTHROPIC_API_KEY stays in this process. A key shipped to the client is a key
  * anyone can lift out of the bundle and spend, and this one is billed per
  * token. Same reasoning as the lead-gen proxy: one origin, secrets server-side.
  *
@@ -24,22 +24,20 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { cockpitGet, cockpitPost } from "../leadgen";
+import {
+  AiNotConfigured,
+  AiUpstreamError,
+  aiModel,
+  createMessage,
+  isAiConfigured,
+  responseText,
+  type Message,
+  type MessagesResponse,
+  type ToolResultBlock,
+  type ToolUseBlock,
+} from "../utils/anthropic";
 import { requireCrmAccess } from "../utils/require-crm-access";
 import getBrand from "../utils/get-brand";
-
-const DEEPSEEK_BASE = "https://api.deepseek.com";
-const MODEL = process.env.DEEPSEEK_MODEL?.trim() || "deepseek-v4-flash";
-
-function apiKey(): string {
-  const key = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!key) {
-    throw new HTTPException(503, {
-      message:
-        "The assistant is not configured — set DEEPSEEK_API_KEY on this deployment.",
-    });
-  }
-  return key;
-}
 
 /* ----------------------------------------------------------------- tools -- */
 
@@ -246,7 +244,7 @@ const TOOLS: Record<
    */
   send_approved_emails: {
     description:
-      "Send the drafts waiting in the review queue. THIS PUTS EMAIL IN FRONT OF REAL SCHOOLS. Never call it unless the user has said yes to sending in this conversation — first say how many will go out and ask.",
+      "Send the drafts waiting in the review queue. THIS PUTS EMAIL IN FRONT OF REAL PROSPECTS (industrial, marine and engineering companies). Never call it unless the user has said yes to sending in this conversation — first say how many will go out and ask.",
     parameters: {
       type: "object",
       properties: {
@@ -280,7 +278,7 @@ const TOOLS: Record<
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "School or organisation name" },
+        query: { type: "string", description: "Company or organisation name, city or state" },
       },
       required: ["query"],
     },
@@ -308,16 +306,16 @@ const TOOLS: Record<
   },
 };
 
+/** TOOLS in the Messages API shape: JSON Schema goes in `input_schema`. */
 function toolSchema() {
   return Object.entries(TOOLS).map(([name, t]) => ({
-    type: "function",
     name,
     description: t.description,
-    parameters: t.parameters,
+    input_schema: t.parameters,
   }));
 }
 
-/* ------------------------------------------------------------- deepseek -- */
+/* ------------------------------------------------------------ anthropic -- */
 
 /**
  * The assistant's instructions, with the instance's own identity substituted in.
@@ -361,36 +359,38 @@ Context you may be given: the page the user is currently looking at. Use it to m
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-/**
- * Pull the assistant text out of a Responses API payload.
- *
- * `output_text` is a convenience property of the OpenAI SDK, not a field
- * DeepSeek returns — reading it yields undefined and every answer comes back
- * empty. The text is nested:
- *
- *   output[] -> {type: "message"} -> content[] -> {type: "output_text"} -> text
- *
- * and the first output item is usually {type: "reasoning"}, which is the
- * model's scratchpad and must not be shown to the user.
- */
-function outputText(
-  output?: { type?: string; content?: { type?: string; text?: string }[] }[],
-): string {
-  return (output ?? [])
-    .filter((o) => o.type === "message")
-    .flatMap((o) => o.content ?? [])
-    .filter((c) => c.type === "output_text")
-    .map((c) => c.text ?? "")
-    .join("")
-    .trim();
+/** One Messages API call, its failures turned into status codes the panel shows. */
+async function callModel(system: string, messages: Message[]): Promise<MessagesResponse> {
+  try {
+    return await createMessage(
+      {
+        system,
+        messages,
+        tools: toolSchema(),
+        max_tokens: 700,
+      },
+      { timeoutMs: 60_000 },
+    );
+  } catch (error) {
+    if (error instanceof AiNotConfigured) {
+      throw new HTTPException(503, {
+        message:
+          "The assistant is not configured — set ANTHROPIC_API_KEY on this deployment.",
+      });
+    }
+    if (error instanceof AiUpstreamError) {
+      throw new HTTPException(502, { message: `Claude: ${error.message}` });
+    }
+    throw error;
+  }
 }
-
 
 /**
  * One turn, with a tool loop.
  *
- * DeepSeek's Responses API returns function calls as output items; each is
- * executed here and fed back, up to a small bound. The bound matters: a model
+ * The Messages API stops with `stop_reason: "tool_use"` and one or more
+ * tool_use blocks; each is executed here and answered with a tool_result block
+ * in the next user message, up to a small bound. The bound matters: a model
  * that loops on a failing tool would otherwise spend the account.
  */
 async function respond(messages: Msg[], route?: string): Promise<{ text: string; used: string[] }> {
@@ -403,7 +403,7 @@ async function respond(messages: Msg[], route?: string): Promise<{ text: string;
    * agent_memory — which angle performs, where bounces concentrate, what is
    * capping volume. Loading the strongest of those into the system prompt is
    * the difference between an assistant that can look things up and one that
-   * has an opinion: it can lead with "preseason_timing is your best message"
+   * has an opinion: it can lead with "the spec-support angle is your best message"
    * without being asked, and it will not contradict what it learned yesterday.
    *
    * Failure here is not fatal. No memory means a thinner answer, not an error,
@@ -431,103 +431,66 @@ async function respond(messages: Msg[], route?: string): Promise<{ text: string;
     // Memory unavailable — answer from tools alone.
   }
 
-  const input: Record<string, unknown>[] = messages.map((m) => ({
+  /*
+   * The page goes in the system prompt rather than as a fake first user turn:
+   * it is context, not something the user said, and it keeps the history a
+   * clean user/assistant alternation.
+   */
+  const system =
+    systemPrompt() +
+    learned +
+    (route ? `\n\nThe user is currently on the "${route}" page.` : "");
+
+  const conversation: Message[] = messages.map((m) => ({
     role: m.role,
     content: m.content,
   }));
-  if (route) {
-    input.unshift({
-      role: "user",
-      content: `[context] The user is currently on the "${route}" page.`,
-    });
-  }
 
   for (let turn = 0; turn < 4; turn++) {
-    const res = await fetch(`${DEEPSEEK_BASE}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        instructions: systemPrompt() + learned,
-        input,
-        tools: toolSchema(),
-        temperature: 0.2,
-        max_output_tokens: 700,
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
+    const response = await callModel(system, conversation);
 
-    if (!res.ok) {
-      const detail = (await res.text()).slice(0, 300);
-      throw new HTTPException(502, {
-        message: `DeepSeek answered ${res.status}: ${detail}`,
-      });
-    }
-
-    const body = (await res.json()) as {
-      output?: {
-        type?: string;
-        name?: string;
-        arguments?: string;
-        call_id?: string;
-        id?: string;
-        content?: { type?: string; text?: string }[];
-      }[];
-    };
-
-    const calls = (body.output ?? []).filter(
-      (o) => o.type === "function_call" && o.name,
+    const calls = response.content.filter(
+      (b): b is ToolUseBlock => b.type === "tool_use",
     );
 
-    if (!calls.length) {
-      return { text: outputText(body.output), used };
+    if (response.stop_reason !== "tool_use" || !calls.length) {
+      return { text: responseText(response), used };
     }
 
-    /*
-     * Echo the WHOLE output array back, not just the function calls.
-     *
-     * DeepSeek's thinking mode emits a {type:"reasoning"} item alongside the
-     * calls, and the next request is rejected outright without it:
-     *
-     *   400 "The `reasoning_text` in the thinking mode must be passed back
-     *        to the API."
-     *
-     * Pushing only the function_call items — which is what the plain OpenAI
-     * pattern does — made every tool-using question fail with a 502, i.e.
-     * every question worth asking. The reasoning is the model's scratchpad:
-     * it goes back on the wire, and outputText() keeps it off the screen.
-     */
-    for (const item of body.output ?? []) {
-      input.push(item as unknown as Record<string, unknown>);
-    }
+    // The assistant turn goes back verbatim — text and tool_use blocks both —
+    // because every tool_result must answer a tool_use id from the turn
+    // immediately before it.
+    conversation.push({ role: "assistant", content: response.content });
 
+    const results: ToolResultBlock[] = [];
     for (const call of calls) {
-      const tool = TOOLS[call.name as string];
+      const tool = TOOLS[call.name];
       let output: string;
+      let isError = false;
       if (!tool) {
         output = JSON.stringify({ error: `unknown tool ${call.name}` });
+        isError = true;
       } else {
-        used.push(call.name as string);
+        used.push(call.name);
         try {
-          const args = call.arguments ? JSON.parse(call.arguments) : {};
-          output = JSON.stringify(await tool.run(args));
+          output = JSON.stringify(await tool.run(call.input ?? {}));
         } catch (e) {
           // Hand the failure back rather than throwing: the model can say "the
           // lead finder is not answering" far better than a 502 can.
           output = JSON.stringify({
             error: (e as Error)?.message ?? "tool failed",
           });
+          isError = true;
         }
       }
-      input.push({
-        type: "function_call_output",
-        call_id: call.call_id ?? call.id,
-        output,
+      results.push({
+        type: "tool_result",
+        tool_use_id: call.id,
+        content: output,
+        ...(isError ? { is_error: true } : {}),
       });
     }
+    conversation.push({ role: "user", content: results });
   }
 
   return {
@@ -544,8 +507,8 @@ const assistant = new Hono<{ Variables: { userId: string } }>()
   /** Whether the assistant is switched on, so the UI can hide itself. */
   .get("/config", (c) =>
     c.json({
-      enabled: Boolean(process.env.DEEPSEEK_API_KEY?.trim()),
-      model: MODEL,
+      enabled: isAiConfigured(),
+      model: aiModel(),
     }),
   )
 
@@ -560,6 +523,9 @@ const assistant = new Hono<{ Variables: { userId: string } }>()
         role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
         content: m.content.slice(0, 4000),
       }));
+    // The window can open on an assistant reply; the Messages API wants the
+    // conversation to start with the user.
+    while (messages[0]?.role === "assistant") messages.shift();
 
     if (!messages.length) {
       throw new HTTPException(400, { message: "Nothing to answer" });

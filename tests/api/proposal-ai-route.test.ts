@@ -117,16 +117,16 @@ vi.mock("../../apps/api/src/proposal/write", () => ({
   updateProposalRecord: async () => ({ id: "x", grandTotal: "0.00" }),
 }));
 
-vi.mock("../../apps/api/src/proposal/ai/openai", async () => {
+vi.mock("../../apps/api/src/utils/anthropic", async () => {
   const actual = await vi.importActual<
-    typeof import("../../apps/api/src/proposal/ai/openai")
-  >("../../apps/api/src/proposal/ai/openai");
+    typeof import("../../apps/api/src/utils/anthropic")
+  >("../../apps/api/src/utils/anthropic");
   return {
     ...actual,
     isAiConfigured: () => true,
     completeJson: async () => ({
       data: state.completion,
-      model: "gpt-5",
+      model: "claude-haiku-5-5",
       promptTokens: 10,
       completionTokens: 20,
     }),

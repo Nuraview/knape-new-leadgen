@@ -11,8 +11,8 @@
  *   POST /api/proposal/:id/ai/regenerate    — rewrite an existing DRAFT
  *   GET  /api/proposal/ai/jobs/:jobId       — poll any of the above
  *
- * ENQUEUE AND POLL, not synchronous. Writing a proposal takes a minute or two,
- * mostly gpt-5 reasoning before it emits a visible token. Holding the request
+ * ENQUEUE AND POLL, not synchronous. Writing a proposal is one long generation
+ * (up to 16k output tokens). Holding the request
  * open for that worked, but it pinned somebody to a spinner and any refresh
  * threw the work away. The three write routes return a job id immediately and
  * the browser polls; see jobs.ts for why the work runs in this process rather
@@ -39,7 +39,7 @@ import {
   type HouseTemplate,
 } from "./house-template";
 import { createJob, findActiveJobForLead, getJob, runJob } from "./jobs";
-import { completeJson, isAiConfigured } from "./openai";
+import { completeJson, isAiConfigured } from "../../utils/anthropic";
 import {
   buildPricingRows,
   engagementKindOf,
@@ -61,7 +61,7 @@ function requireConfigured() {
   if (!isAiConfigured()) {
     throw new HTTPException(503, {
       message:
-        "Proposal AI is not configured on this server — OPENAI_API_KEY is missing.",
+        "Proposal AI is not configured on this server — ANTHROPIC_API_KEY is missing.",
     });
   }
 }

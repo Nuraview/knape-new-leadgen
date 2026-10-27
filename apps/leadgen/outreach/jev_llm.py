@@ -1,40 +1,48 @@
-"""Jev (TypeSafe AI System One) client: typed semantic decisions, stdlib HTTP only.
+"""Typed semantic decisions on Claude (``outreach.claude_llm``, Haiku by default).
 
-Jev evaluates a piece of state against typed questions and returns STRUCTURED
+Evaluates a piece of state against typed questions and returns STRUCTURED
 answers with confidence, instead of generating prose. Three primitives:
 
   noul(instructions)                 probability (0..1) of a yes/no statement
   choice(instructions, criteria)     one option from a closed set
   score(instructions, criteria)      a rating on an ordered rubric (0..n-1)
 
-This is the semantic decision layer of the lead-gen pipeline: ICP fit, pain
-detection, buyer-role classification, entity resolution, routing. Retrieval,
-arithmetic and side effects stay in code; Jev only interprets meaning. Pack many
-atomic questions into ONE call: Jev evaluates them in parallel and bills input
-tokens only, so a wide decision surface per lead is cheap.
+This is the semantic decision layer of the lead-gen pipeline ("Jev" in the
+field, table and endpoint names): ICP fit, pain detection, buyer-role
+classification, entity resolution, routing. Retrieval, arithmetic and side
+effects stay in code; the model only interprets meaning. Pack many atomic
+questions into ONE call: all of a stage's questions are answered in a single
+forced tool call whose input schema is built from the questions, so every
+answer is typed and bounded (enum for choice, integer range for score).
 
-The key is read from JEV_API_KEY / TYPESAFE_API_KEY via config.get_jev_api_key()
-and never hard-coded. API shape verified live against jev-1.13.0:
+Answers map shape (unchanged from the original Jev API, so the accessors and
+stored ``raw_json`` keep their meaning):
 
-  POST {JEV_API_BASE}/systemone  {model, state, questions}
-    -> {model,
-        answers: {id: {type, noul | choice | score, confidence?, probabilities?, legend?}},
-        usage: {input_tokens, output_tokens}}
+  {id: {type: "noul", noul: p}}
+  {id: {type: "choice", choice: key, confidence: c}}
+  {id: {type: "score", score: n, confidence: c}}
 """
 
 from __future__ import annotations
 
-import time
+import json
 from typing import Any
 
-from config import JEV_API_BASE, JEV_MODEL, get_jev_api_key
-from utils.http import post_json
+from outreach.claude_llm import ClaudeError, claude_messages
 
-# post_json raises RuntimeError("HTTP <code>: ...") on non-2xx; these are worth a retry.
-_RETRYABLE_HTTP = frozenset({408, 425, 429, 500, 502, 503, 529})
+_TOOL_NAME = "record_answers"
+_SYSTEM = (
+    "You are a precise classification engine. You receive STATE (facts as JSON) and a set "
+    "of typed questions, and you answer every question by calling the record_answers tool "
+    "exactly once. Judge only from the state; when the state does not support a claim, say "
+    "so through a low probability, an 'unknown'/'other' option, or a low confidence. "
+    "noul answers are the probability (0..1) that the statement is true. choice answers "
+    "pick exactly one option key. score answers pick the 0-based index of the rubric band "
+    "(bands are listed worst first). confidence is 0..1: how sure you are of that answer."
+)
 
 
-# --- question builders (mirror the TypeSafe SDK's noul / choice / score) ------
+# --- question builders (noul / choice / score) --------------------------------
 def noul(instructions: str) -> dict[str, Any]:
     """Yes/no probability. Keep it to a single, literal statement."""
     return {"type": "noul", "instructions": instructions.strip()}
@@ -58,54 +66,115 @@ def score(instructions: str, criteria: list[str]) -> dict[str, Any]:
     return {"type": "score", "instructions": instructions.strip(), "criteria": list(criteria)}
 
 
-def _retryable(msg: str) -> bool:
-    return any(f"HTTP {code}" in msg for code in _RETRYABLE_HTTP)
+def _answer_properties(qid: str, q: dict[str, Any]) -> dict[str, Any]:
+    """Flat tool-input properties for one question: ``<qid>`` holds the answer and,
+    for choice/score, ``<qid>_confidence`` its confidence. Flat on purpose: Haiku
+    flattens nested answer objects into exactly this shape when asked for them."""
+    kind = q.get("type")
+    desc = str(q.get("instructions") or "")
+    conf = {
+        "type": "number", "minimum": 0, "maximum": 1,
+        "description": f"Confidence (0..1) in your answer to {qid}.",
+    }
+    if kind == "noul":
+        return {qid: {"type": "number", "minimum": 0, "maximum": 1,
+                      "description": f"Probability (0..1) that this is true: {desc}"}}
+    if kind == "choice":
+        crit = q.get("criteria") or {}
+        options = "; ".join(f"{k}: {v}" for k, v in crit.items())
+        return {
+            qid: {"type": "string", "enum": list(crit), "description": f"{desc}\nOptions: {options}"},
+            f"{qid}_confidence": conf,
+        }
+    if kind == "score":
+        bands = list(q.get("criteria") or [])
+        rubric = "; ".join(f"{i}: {b}" for i, b in enumerate(bands))
+        return {
+            qid: {"type": "integer", "minimum": 0, "maximum": max(0, len(bands) - 1),
+                  "description": f"{desc}\nRubric (0-based band index, worst first): {rubric}"},
+            f"{qid}_confidence": conf,
+        }
+    raise ValueError(f"unknown question type: {kind!r}")
+
+
+def _clamp01(v: Any, default: float) -> float:
+    try:
+        return min(1.0, max(0.0, float(v)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize(qid: str, q: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Tool input -> the typed answer for one question, or None if missing/invalid."""
+    kind = q["type"]
+    val = raw.get(qid)
+    if val is None:
+        return None
+    if kind == "noul":
+        return {"type": "noul", "noul": _clamp01(val, 0.5)}
+    conf = _clamp01(raw.get(f"{qid}_confidence"), 0.0)
+    if kind == "choice":
+        c = str(val)
+        return {"type": "choice", "choice": c, "confidence": conf} if c in (q.get("criteria") or {}) else None
+    try:
+        s = int(round(float(val)))
+    except (TypeError, ValueError):
+        return None
+    s = min(max(0, s), max(0, len(q.get("criteria") or []) - 1))
+    return {"type": "score", "score": s, "confidence": conf}
 
 
 def jev_decide(
     *,
     state: dict[str, Any],
     questions: dict[str, dict[str, Any]],
-    api_key: str | None = None,
     model: str | None = None,
     timeout: float = 60.0,
-    max_attempts: int = 4,
 ) -> dict[str, Any]:
-    """Run one System One request and return its ``answers`` map.
+    """Answer every question about ``state`` in one Claude call; return the answers map.
 
     `state` is the facts (company, contact, evidence, offer). `questions` maps a
-    question id to a builder result (noul/choice/score). Raises RuntimeError when
-    the key is missing or the API keeps failing; retries 429/5xx with exponential
-    backoff (TypeSafe recommends backoff on 429/529).
+    question id to a builder result (noul/choice/score). Raises RuntimeError
+    (``ClaudeError``) when the key is missing, the API keeps failing (the client
+    retries 429/5xx), or the model leaves a question unanswered.
     """
-    key = (api_key or get_jev_api_key()).strip()
-    if not key:
-        raise RuntimeError("no Jev API key (set JEV_API_KEY or TYPESAFE_API_KEY in .env)")
     if not questions:
         raise ValueError("jev_decide needs at least one question")
-
-    url = f"{JEV_API_BASE}/systemone"
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
+    props: dict[str, Any] = {}
+    for qid, q in questions.items():
+        props.update(_answer_properties(qid, q))
+    tool = {
+        "name": _TOOL_NAME,
+        "description": "Record one typed answer (plus confidence where asked) per question id.",
+        "input_schema": {"type": "object", "properties": props, "required": list(props)},
     }
-    body = {"model": (model or JEV_MODEL), "state": state, "questions": questions}
-
-    last_err: Exception | None = None
-    for attempt in range(max_attempts):
-        try:
-            # retries=0: this wrapper owns the retry loop so it can back off on 429/5xx.
-            data = post_json(url, headers, body, timeout=timeout, retries=0)
-            if not isinstance(data, dict) or "answers" not in data:
-                raise RuntimeError(f"invalid Jev response: {str(data)[:300]}")
-            return data["answers"]
-        except RuntimeError as e:
-            last_err = e
-            if not _retryable(str(e)) or attempt >= max_attempts - 1:
-                raise
-            time.sleep(min(8.0, 0.75 * (2 ** attempt)))
-    raise last_err or RuntimeError("Jev request failed")
+    data = claude_messages(
+        system=_SYSTEM,
+        messages=[{"role": "user", "content": "STATE:\n" + json.dumps(state, ensure_ascii=False, default=str)}],
+        model=model or "",
+        max_tokens=1024 + 64 * len(questions),
+        tools=[tool],
+        tool_choice={"type": "tool", "name": _TOOL_NAME},
+        timeout=timeout,
+    )
+    raw = next(
+        (b.get("input") for b in data.get("content") or []
+         if b.get("type") == "tool_use" and b.get("name") == _TOOL_NAME),
+        None,
+    )
+    if not isinstance(raw, dict):
+        raise ClaudeError(f"no {_TOOL_NAME} tool call in response (stop_reason={data.get('stop_reason')})")
+    answers: dict[str, Any] = {}
+    missing: list[str] = []
+    for qid, q in questions.items():
+        a = _normalize(qid, q, raw)
+        if a is None:
+            missing.append(qid)
+        else:
+            answers[qid] = a
+    if missing:
+        raise ClaudeError(f"model left questions unanswered or invalid: {', '.join(missing)}")
+    return answers
 
 
 # --- typed accessors on an answers map (never raise; return safe defaults) ----

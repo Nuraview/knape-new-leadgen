@@ -4,15 +4,13 @@ import json
 from typing import Any
 
 from config import (
-    GEMINI_MODEL,
     MILESTONE2_FOLLOWUP_GAP_DAYS,
     MILESTONE2_SEQUENCE_STEPS,
     OUTREACH_SENDER_NAME,
     OUTREACH_SUBDOMAIN,
 )
-from config import get_llm_api_key
 from outreach import brand
-from outreach.gemini_llm import gemini_generate_text, parse_json_object
+from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
 
 
 def _first_name(person_name: str) -> str:
@@ -47,6 +45,17 @@ def _template_sequence(lead: dict[str, Any], n_steps: int, angle: str | None = N
         ang = get_angle(angle)
         if ang:
             rendered = render_angle_steps(ang, lead, OUTREACH_SENDER_NAME)
+            if ang.get("event"):
+                # Show angles carry their own pre-show schedule: exactly these
+                # steps, with their own delays (late steps already dropped).
+                return [
+                    {
+                        "subject": st["subject"],
+                        "body": st["body"],
+                        "delay_after_prev_days": 0 if i == 0 else int(st.get("delay_after_prev_days") or 0),
+                    }
+                    for i, st in enumerate(rendered)
+                ]
             steps: list[dict[str, Any]] = []
             for i in range(n_steps):
                 base = rendered[i % len(rendered)]
@@ -125,8 +134,7 @@ def _template_sequence(lead: dict[str, Any], n_steps: int, angle: str | None = N
 
 def generate_sequence(lead: dict[str, Any]) -> list[dict[str, Any]]:
     n = max(2, min(5, MILESTONE2_SEQUENCE_STEPS))
-    api_key = get_llm_api_key()
-    if not api_key:
+    if not claude_enabled():
         return _template_sequence(lead, n)
 
     _brief = brand.business_brief()
@@ -155,12 +163,10 @@ def generate_sequence(lead: dict[str, Any]) -> list[dict[str, Any]]:
         default=str,
     )
     try:
-        content = gemini_generate_text(
-            api_key=api_key,
-            model=GEMINI_MODEL,
+        content = claude_generate_text(
             system_instruction=system,
             user_text=user_text,
-            temperature=0.6,
+            max_tokens=4096,
             timeout=60.0,
         )
         parsed = parse_json_object(content)
@@ -186,6 +192,6 @@ def generate_sequence(lead: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def cockpit_preview_sequence(lead: dict[str, Any]) -> list[dict[str, Any]]:
-    """Template-only steps for UI preview (no Gemini); same shape as ``generate_sequence``."""
+    """Template-only steps for UI preview (no AI); same shape as ``generate_sequence``."""
     n = max(2, min(5, MILESTONE2_SEQUENCE_STEPS))
     return _template_sequence(lead, n)

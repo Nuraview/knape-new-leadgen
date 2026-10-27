@@ -34,9 +34,7 @@ different and much riskier product than one that keeps the calendar straight.
 
 from __future__ import annotations
 
-import json
 import os
-import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -44,10 +42,8 @@ from typing import Any
 
 import config  # noqa: F401 — imported for its dotenv side effect
 from outreach import db, email_store, imap_inbox
+from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
 from utils import pipeline_events
-
-DEEPSEEK_BASE = "https://api.deepseek.com"
-MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
 # Bounded so one pass cannot run away with the API budget or the IMAP session.
 MAX_MESSAGES = int(os.getenv("INBOX_AGENT_MAX", "40"))
@@ -141,66 +137,24 @@ _SCHEMA_HINT = """Return ONLY compact JSON, no prose, with these keys:
  "summary":"one short sentence"}"""
 
 
-def _output_text(data: dict[str, Any]) -> str:
-    """Pull the assistant text out of a Responses API payload.
-
-    `output_text` is a convenience property of the OpenAI SDK, not a field the
-    API returns — reading it gave None every time, so every message came back
-    unclassified and the agent silently did nothing. The real text is nested:
-
-        output[] -> {type: "message"} -> content[] -> {type: "output_text"} -> text
-
-    and the first output item is usually {type: "reasoning"}, which must be
-    skipped rather than concatenated.
-    """
-    parts: list[str] = []
-    for item in data.get("output") or []:
-        if not isinstance(item, dict) or item.get("type") != "message":
-            continue
-        for chunk in item.get("content") or []:
-            if isinstance(chunk, dict) and chunk.get("type") == "output_text":
-                parts.append(str(chunk.get("text") or ""))
-    return "".join(parts).strip()
-
-
 def _ask_model(subject: str, body: str) -> dict[str, Any] | None:
     """Read one message. Returns None when the model is unavailable.
 
     Unavailable must degrade to "leave it alone", never to a guess: a wrong
     classification here silently stops a real prospect's follow-ups.
     """
-    key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
-    if not key:
+    if not claude_enabled():
         return None
     try:
-        import urllib.request
-
-        payload = json.dumps(
-            {
-                "model": MODEL,
-                "instructions": (
-                    "You triage replies to a B2B cold outreach campaign. "
-                    + _SCHEMA_HINT
-                ),
-                "input": f"Subject: {subject}\n\n{body[:3000]}",
-                "temperature": 0,
-                "max_output_tokens": 300,
-            }
-        ).encode()
-        req = urllib.request.Request(
-            f"{DEEPSEEK_BASE}/responses",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
+        text = claude_generate_text(
+            system_instruction=(
+                "You triage replies to a B2B cold outreach campaign. " + _SCHEMA_HINT
+            ),
+            user_text=f"Subject: {subject}\n\n{body[:3000]}",
+            max_tokens=300,
+            timeout=45.0,
         )
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        text = _output_text(data)
-        match = re.search(r"\{.*\}", text, re.S)
-        return json.loads(match.group(0)) if match else None
+        return parse_json_object(text)
     except Exception as e:  # noqa: BLE001 — triage must never break the scheduler
         print(f"  inbox-agent: model call failed ({type(e).__name__})")
         return None

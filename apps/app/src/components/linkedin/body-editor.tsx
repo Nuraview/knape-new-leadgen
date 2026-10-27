@@ -167,7 +167,7 @@ export function BodyEditor({
             Replaces whatever is in the box with a first draft, in the same voice
             as the outreach emails. Read it before it goes anywhere.
             {meta && !meta.aiConfigured
-              ? " (OPENAI_API_KEY is not set on this deployment yet.)"
+              ? " (ANTHROPIC_API_KEY is not set on this deployment yet.)"
               : ""}
           </p>
         </div>

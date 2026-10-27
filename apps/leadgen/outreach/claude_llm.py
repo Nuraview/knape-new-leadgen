@@ -57,7 +57,7 @@ def claude_messages(
     messages: list[dict[str, Any]],
     model: str = "",
     max_tokens: int = 2048,
-    temperature: float | None = None,
+    # No `temperature`: claude-haiku-5-5 rejects it (HTTP 400, deprecated).
     tools: list[dict[str, Any]] | None = None,
     tool_choice: dict[str, Any] | None = None,
     timeout: float = 120.0,
@@ -76,8 +76,6 @@ def claude_messages(
         "system": system,
         "messages": messages,
     }
-    if temperature is not None:
-        payload["temperature"] = temperature
     if tools:
         payload["tools"] = tools
     if tool_choice:
@@ -126,7 +124,6 @@ def claude_generate_text(
     system_instruction: str,
     user_text: str,
     model: str = "",
-    temperature: float | None = None,
     max_tokens: int = 2048,
     timeout: float = 120.0,
     api_key: str = "",
@@ -137,7 +134,6 @@ def claude_generate_text(
         messages=[{"role": "user", "content": user_text}],
         model=model,
         max_tokens=max_tokens,
-        temperature=temperature,
         timeout=timeout,
         api_key=api_key,
     )

@@ -1,8 +1,8 @@
-"""AI email-sequence drafting via OpenAI (gpt-5.4-mini by default).
+"""AI email-sequence drafting via Claude (``outreach.claude_llm``, Haiku by default).
 
 Produces the first email + scheduled follow-ups from a lead's context. Falls
 back to the deterministic template sequence (``personalize._template_sequence``)
-if OpenAI is unavailable, so the Send flow always has copy to work with.
+if Claude is unavailable, so the Send flow always has copy to work with.
 """
 
 from __future__ import annotations
@@ -15,11 +15,14 @@ from config import (
     MILESTONE2_SEQUENCE_STEPS,
     OUTREACH_FROM_NAME,
     OUTREACH_SENDER_NAME,
-    OPENAI_MODEL,
-    get_openai_api_key,
 )
 from outreach import brand
-from outreach.openai_llm import OpenAIError, openai_generate_text, parse_json_object
+from outreach.claude_llm import (
+    ClaudeError,
+    claude_enabled,
+    claude_generate_text,
+    parse_json_object,
+)
 from outreach.personalize import _gaps_for_steps, _template_sequence
 
 
@@ -49,12 +52,12 @@ def _coerce_steps(raw_steps: Any, n: int, gaps: list[int]) -> list[dict[str, Any
 def draft_email_sequence(
     lead: dict[str, Any], angle: str | None = None
 ) -> tuple[list[dict[str, Any]], str]:
-    """Return (steps, provider). provider is 'openai' or 'template'.
+    """Return (steps, provider). provider is 'claude' or 'template'.
 
     Each step: ``{subject, body, delay_after_prev_days}`` (step 0 delay = 0).
     When ``angle`` is given, the copy is written in that messaging angle's voice
     and always carries its value-add link (falls back to that angle's canonical
-    template copy if OpenAI is unavailable).
+    template copy if Claude is unavailable).
     """
     # Dashboard settings win over env/config (adjustable without a restart).
     try:
@@ -66,22 +69,37 @@ def draft_email_sequence(
         steps_setting, sender_setting = MILESTONE2_SEQUENCE_STEPS, ""
     n = max(2, min(5, steps_setting))
     gaps = _gaps_for_steps(n)
-    api_key = get_openai_api_key()
-    if not api_key:
+    if not claude_enabled():
         return _template_sequence(lead, n, angle), "template"
 
     sender = sender_setting or OUTREACH_FROM_NAME or OUTREACH_SENDER_NAME
 
     angle_brief = ""
     style_ref = ""
+    event_delays: list[int] = []
     from outreach.messaging_angles import HOUSE_STYLE
     if angle:
-        from outreach.messaging_angles import angle_prompt_brief, angle_reference_block, get_angle
+        from outreach.messaging_angles import (
+            angle_prompt_brief,
+            angle_reference_block,
+            get_angle,
+            render_angle_steps,
+        )
 
         ang = get_angle(angle)
         if ang:
             angle_brief = " " + angle_prompt_brief(ang)
             style_ref = "\n\n" + angle_reference_block(ang, sender)
+            if ang.get("event"):
+                # Show angles fix the step count and the pre-show send schedule.
+                rendered = render_angle_steps(ang, lead, sender)
+                if rendered:
+                    n = len(rendered)
+                    event_delays = [
+                        0 if i == 0 else int(st.get("delay_after_prev_days") or 0)
+                        for i, st in enumerate(rendered)
+                    ]
+                    gaps = event_delays[1:]
 
     # The business description is CONFIGURATION, not a literal. Hardcoded, this
     # prompt told every instance's model it was selling one specific client's
@@ -141,17 +159,18 @@ def draft_email_sequence(
         default=str,
     )
     try:
-        content = openai_generate_text(
+        content = claude_generate_text(
             system_instruction=system,
             user_text=user_text,
-            model=OPENAI_MODEL,
-            temperature=0.7,
+            max_tokens=max(4096, 900 * n),
             timeout=90.0,
-            api_key=api_key,
         )
         parsed = parse_json_object(content)
         steps = _coerce_steps(parsed.get("steps") or parsed, n, gaps)
         if len(steps) >= 2 and all(s["subject"] and s["body"] for s in steps):
+            for i, s in enumerate(steps):
+                if i < len(event_delays):
+                    s["delay_after_prev_days"] = event_delays[i]
             # The model is told to include the value link in every step. It does
             # not always, and this check used to be "subject and body are
             # non-empty" — which a follow-up with no call to action passes. So
@@ -161,8 +180,8 @@ def draft_email_sequence(
 
             for s in steps:
                 s["body"] = ensure_value_link(s["body"], angle or "")
-            return steps[:n], "openai"
-    except (OpenAIError, ValueError, KeyError, json.JSONDecodeError):
+            return steps[:n], "claude"
+    except (ClaudeError, ValueError, KeyError, json.JSONDecodeError):
         pass
     return _template_sequence(lead, n, angle), "template"
 

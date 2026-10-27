@@ -107,9 +107,9 @@ Tables auto-create on first API boot. To import existing SQLite data, see
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `python main.py status`                         | Shows whether a pipeline command is running (uses `outreach_data/.pipeline_run.json`)                                       |
 | `python main.py` or `python main.py milestone1` | Fetch → ICP → **`1.xlsx`**                                                                                                  |
-| `python main.py milestone2-research`            | Fills `company_profile`, `active_projects`, `equipment_needs` (needs `GEMINI_API_KEY` or `GOOGLE_API_KEY` for real AI)      |
+| `python main.py milestone2-research`            | Fills `company_profile`, `active_projects`, `equipment_needs` (needs `ANTHROPIC_API_KEY` for real AI; Claude Haiku)         |
 | `python main.py milestone2-enrich`              | Hunter.io finder + verifier → fills `email`, `email_verification_status`, scores; writes `email_verification_report.json`   |
-| `python main.py milestone2`                     | Gemini research prep (optional), drafts, Instantly gate (`MILESTONE2_CLIENT_APPROVED` + optional Hunter gate before upload) |
+| `python main.py milestone2`                     | Claude research prep (optional), drafts, Instantly gate (`MILESTONE2_CLIENT_APPROVED` + optional Hunter gate before upload) |
 | `python main.py milestone2-dashboard`           | Local metrics HTTP UI                                                                                                       |
 | `python main.py cockpit-api`                    | Postgres-backed API for React cockpit UI (`/api/auth/login`, `/api/sync`, `/api/accounts`, `/api/accounts/{id}`)            |
 

@@ -3,16 +3,16 @@ import {
   AiNotConfigured,
   completeJson,
   isAiConfigured,
-} from "../../proposal/ai/openai";
+} from "../../utils/anthropic";
 import { DRAFT_SCHEMA, findAngle, systemPrompt } from "./prompt";
 
 /**
  * A first draft for the composer.
  *
- * Reuses the proposal module's OpenAI helper rather than adding a second way to
- * call the same API — it already handles strict JSON schema decoding, refusals,
- * truncation and the max_tokens/max_completion_tokens model split, and its "raw
- * fetch, no SDK" rule is load-bearing for the deploy image.
+ * Reuses the shared Anthropic helper (utils/anthropic.ts) rather than adding a
+ * second way to call the same API — it already handles forced structured
+ * output, refusals and truncation, and its "raw fetch, no SDK" rule is
+ * load-bearing for the deploy image.
  *
  * Nothing here is saved. The text goes back to the browser and a person decides
  * what to do with it, which is the only honest way to ship AI copy into a feed
@@ -78,7 +78,7 @@ export async function draftPost(
     // 503, not 500: the feature is fine, this deployment just has no key.
     throw new HTTPException(503, {
       message:
-        "AI drafting is not configured — set OPENAI_API_KEY on this deployment. You can still write the post by hand.",
+        "AI drafting is not configured — set ANTHROPIC_API_KEY on this deployment. You can still write the post by hand.",
     });
   }
 

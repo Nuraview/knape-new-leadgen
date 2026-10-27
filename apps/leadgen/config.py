@@ -58,17 +58,6 @@ _ROOT = Path(__file__).resolve().parent
 load_dotenv(_ROOT / ".env")
 load_dotenv(_ROOT.parent / ".env")
 
-GEMINI_ENV_NAMES: tuple[str, ...] = (
-    "GEMINI_API_KEY",
-    "GOOGLE_API_KEY",
-    "GEMINI_KEY",
-    "GOOGLE_AI_API_KEY",
-    "GOOGLE_GENAI_API_KEY",
-    "GOOGLE_GENERATIVE_AI_API_KEY",
-    "gemini_api_key",
-    "google_api_key",
-)
-
 
 def _env_first(*names: str) -> str:
     for name in names:
@@ -79,58 +68,6 @@ def _env_first(*names: str) -> str:
         if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
             s = s[1:-1].strip()
         return s
-    return ""
-
-
-def _parse_gemini_key_from_dotenv_file(path: Path) -> str:
-    d = _parse_dotenv_file(path)
-    for name in GEMINI_ENV_NAMES:
-        val = d.get(name)
-        if val and str(val).strip():
-            return str(val).strip()
-    return ""
-
-
-def _is_google_gemini_api_key(key: str) -> bool:
-    k = (key or "").strip()
-    if not k or k.startswith("sk-or-"):
-        return False
-    return True
-
-
-def get_gemini_api_key() -> str:
-    """Google AI Studio / Gemini API key (``GEMINI_API_KEY``, ``GOOGLE_API_KEY``, etc.)."""
-    load_dotenv(_ROOT / ".env", override=False)
-    load_dotenv(_ROOT.parent / ".env", override=False)
-    k = _env_first(*GEMINI_ENV_NAMES)
-    if _is_google_gemini_api_key(k):
-        return k
-    parsed = _parse_gemini_key_from_dotenv_file(_ROOT / ".env") or _parse_gemini_key_from_dotenv_file(
-        _ROOT.parent / ".env"
-    )
-    return parsed if _is_google_gemini_api_key(parsed) else ""
-
-
-def get_openrouter_api_key() -> str:
-    """OpenRouter API key (``OPENROUTER_API_KEY``). Used to reach Gemini via OpenRouter's
-    OpenAI-compatible API. When set, it takes precedence over the native Gemini key."""
-    load_dotenv(_ROOT / ".env", override=False)
-    load_dotenv(_ROOT.parent / ".env", override=False)
-    return _env_first("OPENROUTER_API_KEY", "openrouter_api_key")
-
-
-def llm_uses_openrouter() -> bool:
-    """True when an OpenRouter key is configured (preferred over native Gemini)."""
-    return bool(get_openrouter_api_key())
-
-
-def get_llm_api_key() -> str:
-    """The active LLM key: OpenRouter when set, else the native Gemini (Google AI Studio) key."""
-    return get_openrouter_api_key() or get_gemini_api_key()
-
-
-def get_openrouter_key_in_env_hint() -> str:
-    """Deprecated — OpenRouter is now a first-class provider. Always empty."""
     return ""
 
 
@@ -291,15 +228,6 @@ ICP_WEIGHT_ROLE_RELEVANCE = float(os.getenv("ICP_WEIGHT_ROLE_RELEVANCE", "1.0"))
 ICP_WEIGHT_COMPANY_FIT = float(os.getenv("ICP_WEIGHT_COMPANY_FIT", "1.0"))
 
 # --- Milestone 2 — outreach, research, Instantly (see ``main.py`` commands) ---
-GEMINI_API_KEY = _env_first(*GEMINI_ENV_NAMES)  # static load; use get_gemini_api_key() when in doubt
-# Native Gemini API model id (not an OpenRouter slug). Override via ``GEMINI_MODEL`` in ``.env``.
-_raw_gemini_model = (os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite") or "gemini-2.5-flash-lite").strip()
-GEMINI_MODEL = _raw_gemini_model.split("/", 1)[-1] if _raw_gemini_model.startswith("google/") else _raw_gemini_model
-# OpenRouter (OpenAI-compatible) — used to reach Gemini when OPENROUTER_API_KEY is set.
-OPENROUTER_API_BASE = (os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1") or "https://openrouter.ai/api/v1").strip().rstrip("/")
-# OpenRouter model slug. Empty default → derive ``google/<GEMINI_MODEL>`` so it tracks GEMINI_MODEL.
-# Override with e.g. ``OPENROUTER_MODEL=google/gemini-2.5-flash`` in ``.env``.
-OPENROUTER_MODEL = (os.getenv("OPENROUTER_MODEL", "") or "").strip()
 INSTANTLY_API_KEY = os.getenv("INSTANTLY_API_KEY", "").strip()
 INSTANTLY_API_BASE = os.getenv("INSTANTLY_API_BASE", "https://api.instantly.ai").strip().rstrip("/")
 # Existing Instantly campaign UUID (create in UI; sequence steps use {{m2_stepN_*}} custom vars).
@@ -369,24 +297,6 @@ OUTREACH_DAILY_SEND_CAP = _int_env("OUTREACH_DAILY_SEND_CAP", "40")
 # on the sending domain (nginx proxies /t/ -> this API). Empty disables tracking.
 OUTREACH_TRACK_BASE_URL = (os.getenv("OUTREACH_TRACK_BASE_URL", "").strip().rstrip("/"))
 
-# --- OpenAI (email drafting only; research stays on OpenRouter/Gemini) ---
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-OPENAI_API_BASE = (os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1") or "https://api.openai.com/v1").strip().rstrip("/")
-
-
-def _normalize_openai_model(raw: str) -> str:
-    """Map loose names like 'GPT-5.4 mini' to the API id 'gpt-5.4-mini'."""
-    m = (raw or "").strip().lower().replace(" ", "-")
-    while "--" in m:
-        m = m.replace("--", "-")
-    return m or "gpt-5.4-mini"
-
-
-OPENAI_MODEL = _normalize_openai_model(os.getenv("OPENAI_MODEL", "gpt-5.4-mini"))
-
-
-def get_openai_api_key() -> str:
-    return _env_first("OPENAI_API_KEY", "openai_api_key") or OPENAI_API_KEY
 MILESTONE2_DB_PATH = os.getenv(
     "MILESTONE2_DB_PATH",
     str(_ROOT / "outreach_data" / "milestone2.sqlite"),
@@ -449,10 +359,10 @@ COCKPIT_ADMIN_EMAIL = os.getenv("COCKPIT_ADMIN_EMAIL", "admin@local").strip()
 COCKPIT_ADMIN_PASSWORD = os.getenv("COCKPIT_ADMIN_PASSWORD", "changeme123").strip()
 COCKPIT_SESSION_DAYS = max(1, _int_env("COCKPIT_SESSION_DAYS", "7"))
 
-# MILESTONE2_RESEARCH_FORCE — Re-run Gemini company research even when cells already filled.
+# MILESTONE2_RESEARCH_FORCE — Re-run AI company research even when cells already filled.
 # MILESTONE2_RESEARCH_MAX_API_CALLS — Max paid research calls per run (``0`` = unlimited).
-# MILESTONE2_RESEARCH_CONCURRENCY — Parallel Gemini requests.
-# MILESTONE2_RESEARCH_SHARE_BY_COMPANY — If true (default), one Gemini call per company+website fan-out
+# MILESTONE2_RESEARCH_CONCURRENCY — Parallel research model requests.
+# MILESTONE2_RESEARCH_SHARE_BY_COMPANY — If true (default), one research call per company+website fan-out
 #   to all matching rows (cheaper). If false, each sheet row gets its own call (full per-lead copy).
 MILESTONE2_RESEARCH_BEFORE_OUTREACH = os.getenv(
     "MILESTONE2_RESEARCH_BEFORE_OUTREACH", "true"
@@ -517,27 +427,3 @@ MILESTONE2_SEND_REQUIRES_CLIENT_APPROVAL = os.getenv(
 MILESTONE2_SEND_REQUIRES_HUNTER_OK = os.getenv(
     "MILESTONE2_SEND_REQUIRES_HUNTER_OK", ""
 ).lower() in ("1", "true", "yes")
-
-
-# --- Jev (TypeSafe AI System One) — semantic decision layer -------------------
-# Flagship typed-classification model used across lead-gen judgments (ICP fit,
-# pain, buyer role, dedup, routing). It evaluates state against typed questions
-# and returns structured answers with confidence, instead of writing prose.
-# The key is a SECRET: set JEV_API_KEY (or TYPESAFE_API_KEY) in .env, never in
-# code. See outreach/jev_llm.py and the lead-gen enrichment playbook.
-JEV_ENV_NAMES: tuple[str, ...] = (
-    "JEV_API_KEY",
-    "TYPESAFE_API_KEY",
-    "TYPESAFE_AI_API_KEY",
-    "jev_api_key",
-    "typesafe_api_key",
-)
-JEV_API_BASE = (
-    os.getenv("JEV_API_BASE", "https://api.typesafe.ai/v1") or "https://api.typesafe.ai/v1"
-).strip().rstrip("/")
-# Pin a specific version once thresholds are tuned; "jev-latest" tracks releases.
-JEV_MODEL = (os.getenv("JEV_MODEL", "jev-1.13.0") or "jev-1.13.0").strip()
-
-
-def get_jev_api_key() -> str:
-    return _env_first(*JEV_ENV_NAMES)

@@ -19,6 +19,7 @@ import {
   nvLinkedinPostMedia,
   nvLinkedinPosts,
 } from "../database/crm-schema";
+import { isAiConfigured } from "../utils/anthropic";
 import { requireCrmAccess } from "../utils/require-crm-access";
 import { draftPost } from "./ai/draft";
 import { ANGLES } from "./ai/prompt";
@@ -64,7 +65,7 @@ const linkedin = new Hono<{
       statuses: POST_STATUSES,
       angles: ANGLES.map((a) => ({ key: a.key, name: a.name })),
       storageConfigured: isStorageConfigured(),
-      aiConfigured: Boolean(process.env.OPENAI_API_KEY),
+      aiConfigured: isAiConfigured(),
     }),
   )
 

@@ -1,6 +1,6 @@
 """Phase 2 contact extraction — crawl an org's own site with our own HTTP + parsing.
 
-No paid tools, no LLM: fetch the homepage, discover staff/athletics/contact/directory
+No paid tools, no LLM: fetch the homepage, discover team/leadership/contact/directory
 pages (link heuristics + sitemap.xml), parse them with the stdlib HTML parser, and pull
 name / title / email / phone for target roles by document-order proximity. Emails not
 listed but with a known name are inferred from the domain's visible email pattern and
@@ -37,27 +37,40 @@ _PHONE_RE = re.compile(r"\(?\b\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}\b")
 # First [M.] Last — last name may be O'Brien / McDonald / Smith-Jones style
 _NAME_RE = re.compile(r"\b([A-Z][a-z]+(?:\s+(?:[A-Z]\.|[A-Z][A-Za-z'’\-]*[a-z])){1,2})\b")
 
+# Institutions (schools, districts, universities, ports, counties) buy air-movement
+# equipment through facilities / physical plant, so those are the target roles there.
 _SCHOOL_ROLES = re.compile(
-    r"\b(athletic director|director of athletics|activities director|athletic coordinator|"
-    r"activities coordinator|assistant principal|vice principal|associate principal|principal|"
-    r"dean of students|head counselor|lead counselor|director of counseling|counseling director|"
-    r"student activities director)\b",
+    r"\b(director of facilities|facilities director|facilities manager|facility manager|"
+    r"director of maintenance|maintenance director|maintenance manager|maintenance supervisor|"
+    r"physical plant director|director of physical plant|plant operations|director of operations|"
+    r"operations director|chief operating officer|energy manager|hvac supervisor|"
+    r"construction manager|project manager|purchasing manager|purchasing director|"
+    r"director of purchasing|procurement manager|buyer)\b",
     re.I,
 )
-_COALITION_ROLES = re.compile(
-    r"\b(executive director|deputy director|program director|program coordinator|project coordinator|"
-    r"prevention coordinator|prevention specialist|prevention program manager|coalition coordinator|"
-    r"coalition director|director of prevention|program manager|project director|prevention manager)\b",
+# Knape Associates buyers at companies: engineering, facilities/plant/operations,
+# vessel/fleet superintendents, project managers, purchasing, and owners/executives.
+_BUYER_ROLES = re.compile(
+    r"\b(design engineer|project engineer|mechanical engineer|marine engineer|port engineer|"
+    r"hvac engineer|facilities engineer|plant engineer|process engineer|engineering manager|"
+    r"director of engineering|chief engineer|vp of engineering|naval architect|"
+    r"facilities manager|facility manager|plant manager|maintenance manager|maintenance superintendent|"
+    r"operations manager|director of operations|"
+    r"(?:senior |executive )?(?:vp|vice president)(?:,? (?:of )?(?:technical )?(?:operations|engineering))?|"
+    r"general manager|technical superintendent|vessel superintendent|fleet superintendent|"
+    r"marine superintendent|port captain|project manager|construction manager|"
+    r"purchasing manager|purchasing agent|procurement manager|director of procurement|"
+    r"supply chain manager|buyer|owner|president|ceo|coo|chief operating officer)\b",
     re.I,
 )
 
 # Link/anchor hints for pages worth crawling (weight = how likely it names people).
 _PAGE_HINTS: tuple[tuple[str, int], ...] = (
     ("staff-directory", 10), ("staff_directory", 10), ("staff-list", 9), ("directory", 9),
-    ("administration", 8), ("our-team", 8), ("our-staff", 8), ("leadership", 8),
-    ("athletics", 7), ("athletic", 7), ("faculty", 7), ("our-people", 7), ("team", 5),
-    ("staff", 6), ("about-us", 5), ("about", 4), ("contact-us", 6), ("contact", 5),
-    ("counseling", 5), ("administrators", 8), ("principal", 6),
+    ("leadership", 9), ("management", 8), ("our-team", 8), ("our-staff", 8), ("executive", 7),
+    ("administration", 8), ("our-people", 7), ("team", 5), ("people", 6), ("engineering", 6),
+    ("facilities", 6), ("operations", 5), ("staff", 6), ("about-us", 5), ("about", 4),
+    ("contact-us", 6), ("contact", 5), ("purchasing", 6), ("procurement", 6),
 )
 
 # Tokens that are never a person's name (school/org/geography/title noise).
@@ -86,10 +99,14 @@ _NAME_STOP = {
     "finalsite", "admin", "hub", "powered", "blackboard", "schoolwires", "connected",
     "employee", "times", "daily", "tribune", "herald", "gazette", "journal",
     "send", "mail", "call", "fax",
+    # corporate title / department words that title-case like a name
+    "vice", "senior", "executive", "operations", "technical", "business", "sales",
+    "engineering", "marine", "shipyard", "repair", "development", "construction", "new",
 }
 _TITLE_WORDS = {
     "director", "principal", "coordinator", "specialist", "manager", "counselor", "dean",
     "superintendent", "president", "chief", "officer", "supervisor", "administrator",
+    "engineer", "architect", "buyer", "owner", "captain", "foreman", "estimator", "vp",
 }
 
 
@@ -371,7 +388,7 @@ def _candidate_urls(base: str, links: list[tuple[str, str]]) -> list[str]:
         if weight:
             scored[absolute] = max(scored.get(absolute, 0), weight)
     ordered = [u for u, _ in sorted(scored.items(), key=lambda kv: -kv[1])]
-    for path in ("/staff-directory", "/directory", "/staff", "/athletics", "/about/staff", "/contact"):
+    for path in ("/leadership", "/our-team", "/about/leadership", "/team", "/staff-directory", "/contact"):
         u = root + path
         if u not in scored:
             ordered.append(u)
@@ -479,7 +496,7 @@ def extract_contacts(
     segments: list[dict], is_school: bool, org_name: str = "", site_host: str = ""
 ) -> tuple[list[dict], list[str]]:
     """Return (contacts, domain_emails). Contacts: {name,title,email,phone,email_status}."""
-    roles = _SCHOOL_ROLES if is_school else _COALITION_ROLES
+    roles = _SCHOOL_ROLES if is_school else _BUYER_ROLES
     org_toks = {t for t in re.findall(r"[a-z]+", org_name.lower()) if len(t) > 2}
     domain_emails: list[str] = []
     for seg in segments:
@@ -625,7 +642,7 @@ def crawl_site(
     if scope:
         root = f"{urlparse(base).scheme}://{urlparse(base).netloc}"
         candidates = [u for u in candidates if urlparse(u).path.lower().startswith(scope)]
-        candidates += [root + scope + p for p in ("/staff", "/athletics", "/contact", "/directory")]
+        candidates += [root + scope + p for p in ("/staff", "/leadership", "/contact", "/directory")]
     seen = {base}
     ordered = [u for u in candidates if u not in seen and not seen.add(u)]
     if camofox_site:  # browser pages cost ~10-15s each — visit only the best few

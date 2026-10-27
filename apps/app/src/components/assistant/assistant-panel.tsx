@@ -394,7 +394,7 @@ export function AssistantPanel() {
   /*
    * Rendered even when unconfigured, deliberately.
    *
-   * This used to return null without DEEPSEEK_API_KEY, which meant a deployed,
+   * This used to return null without its API key, which meant a deployed,
    * working assistant was indistinguishable from one that had never been
    * built — "where is the copilot?" with no way to tell. A feature that hides
    * itself when it needs something is a feature nobody can debug.
@@ -460,7 +460,7 @@ export function AssistantPanel() {
           <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-600">
             <p className="font-medium">The assistant needs its API key.</p>
             <p className="text-xs">
-              Set <code className="font-mono">DEEPSEEK_API_KEY</code> on this
+              Set <code className="font-mono">ANTHROPIC_API_KEY</code> on this
               deployment and redeploy. Everything else — the tools, the panel,
               the wiring — is already live; it will start answering the moment
               the key exists.

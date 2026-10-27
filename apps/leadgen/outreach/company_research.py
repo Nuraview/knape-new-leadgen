@@ -3,9 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from config import GEMINI_MODEL, get_llm_api_key
 from outreach import brand
-from outreach.gemini_llm import gemini_generate_text, parse_json_object
+from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
 
 # Written to spreadsheet / DB payloads from ``research_lead``.
 RESEARCH_OUTPUT_FIELDS: tuple[str, ...] = (
@@ -17,26 +16,23 @@ RESEARCH_OUTPUT_FIELDS: tuple[str, ...] = (
     "icp_enhanced_score",
 )
 
-# Markers embedded in ``company_profile`` when Gemini is not used (see ``research_lead``).
+# Markers embedded in ``company_profile`` when the model is not used (see ``research_lead``).
 _FALLBACK_MARKER_NO_API_KEY = "No API key:"
-_FALLBACK_MARKER_GEMINI_ERROR = "AI research failed (Gemini error"
+# Provider-neutral prefix so rows written before the Claude cutover still match.
+_FALLBACK_MARKER_API_ERROR = "AI research failed ("
+API_ERROR_PREFIX = "AI research failed (Claude error). "
 
 
-def research_non_gemini_reason(r: dict[str, Any]) -> str | None:
-    """None if ``company_profile`` looks like a normal Gemini fill; else offline/API template kind."""
+def research_fallback_reason(r: dict[str, Any]) -> str | None:
+    """None if ``company_profile`` looks like a normal AI fill; else offline/API template kind."""
     cp = (r.get("company_profile") or "").strip()
     if not cp:
         return "empty_profile"
     if _FALLBACK_MARKER_NO_API_KEY in cp:
         return "no_key"
-    if _FALLBACK_MARKER_GEMINI_ERROR in cp:
+    if _FALLBACK_MARKER_API_ERROR in cp:
         return "api_error"
     return None
-
-
-def research_result_used_gemini(payload: dict[str, Any]) -> bool:
-    """True when ``research_lead`` looks like a successful model response (not offline template)."""
-    return research_non_gemini_reason(payload) is None
 
 
 def _research_system() -> str:
@@ -94,8 +90,7 @@ def _fallback_research(lead: dict[str, Any]) -> dict[str, str]:
         f"{company} is surfaced as a lead based on available sourcing data.{site_note} "
         f"Decision-maker context includes role «{title or 'unknown'}». "
         f"Signal category noted as «{cat or 'unknown'}». "
-        "No API key: set GEMINI_API_KEY or GOOGLE_API_KEY in the project `.env` "
-        "(Google AI Studio). "
+        "No API key: set ANTHROPIC_API_KEY in the project `.env` or the dashboard Keys tab. "
     )
     projects = (
         f"From the captured signal alone: {sig[:600]}{'…' if len(sig) > 600 else ''}. "
@@ -129,9 +124,10 @@ def _fallback_after_api_error(lead: dict[str, Any], hint: str) -> dict[str, str]
     err_note = (hint or "unknown error")[:500]
     base["company_profile"] = (
         (lead.get("company") or "Company").strip()
-        + ": AI research failed (Gemini error). "
+        + ": "
+        + API_ERROR_PREFIX
         + err_note
-        + " Retry later or check GEMINI_API_KEY / billing / rate limits."
+        + " Retry later or check ANTHROPIC_API_KEY / billing / rate limits."
     )
     return base
 
@@ -183,8 +179,7 @@ def _normalize_research_parsed(parsed: dict[str, Any], lead: dict[str, Any]) -> 
 
 
 def research_lead(lead: dict[str, Any]) -> dict[str, str]:
-    api_key = get_llm_api_key()
-    if not api_key:
+    if not claude_enabled():
         return _fallback_research(lead)
 
     facts = {
@@ -205,21 +200,16 @@ def research_lead(lead: dict[str, Any]) -> dict[str, str]:
     }
     user_text = json.dumps({"facts": facts}, ensure_ascii=False)
     try:
-        content = gemini_generate_text(
-            api_key=api_key,
-            model=GEMINI_MODEL,
+        content = claude_generate_text(
             system_instruction=_research_system(),
             user_text=user_text,
-            temperature=0.35,
+            max_tokens=3000,
             timeout=120.0,
         )
         parsed = parse_json_object(content)
         return _normalize_research_parsed(parsed, lead)
     except (RuntimeError, KeyError, ValueError, json.JSONDecodeError, TypeError) as e:
-        from config import llm_uses_openrouter
         from utils import pipeline_events
 
-        pipeline_events.note_vendor_error(
-            "OpenRouter" if llm_uses_openrouter() else "Gemini", e
-        )
+        pipeline_events.note_vendor_error("Claude", e)
         return _fallback_after_api_error(lead, str(e))

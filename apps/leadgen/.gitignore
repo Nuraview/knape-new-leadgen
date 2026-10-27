@@ -3,7 +3,7 @@
 # not come across — the SPA replaced the frontend, the landing sites deploy
 # separately, and the PDFs/zips were litter.
 
-# Live secrets: SMTP passwords, Apify, Hunter, OpenAI and the search-provider
+# Live secrets: SMTP passwords, Apify, Hunter, Anthropic and the search-provider
 # keys are all read from here.
 .env
 .env.*

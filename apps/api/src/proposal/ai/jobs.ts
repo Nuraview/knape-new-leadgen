@@ -1,8 +1,8 @@
 /**
  * The queue behind "Draft with AI".
  *
- * Writing a proposal takes a minute or two — mostly gpt-5 reasoning before it
- * emits a visible token. Holding an HTTP request open that long works, but it
+ * Writing a proposal is one long model generation. Holding an HTTP request
+ * open that long works, but it
  * puts a person in front of a spinner with nothing to do, and any refresh or
  * flaky connection throws the work away.
  *
