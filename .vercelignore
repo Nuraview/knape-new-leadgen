@@ -16,6 +16,7 @@ __pycache__
 /*.docx
 /*.png
 /*.avif
+/*.apk
 
 # NOT root-anchored. apps/web/backups holds a 90MB SQL dump and a leads
 # ndjson; with a leading slash they sailed through and the upload died on
