@@ -42,6 +42,11 @@ export type Account = {
 	 * is never blank. One of the keys in lib/events/registry.ts (T0-HOT, …).
 	 */
 	tier?: string;
+	/**
+	 * The AI research pass's one-sentence justification for `tier` ("" when the
+	 * account was never researched). Shown as a banner on T0–T2 leads.
+	 */
+	tier_reason?: string;
 	/** Trade-show segment (OEM, Integrator, …), shown under the company name. */
 	segment?: string;
 	/**

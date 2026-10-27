@@ -97,27 +97,33 @@ const ZINC =
 // the "What do the tiers mean?" legend.
 //
 // The hints describe how tiers were ACTUALLY assigned, not the score fallback
-// in the cockpit's _effective_tier_sql: every WorkBoat 2026 company carries an
-// icp_score of 0, and its tier was written by a research pass on 24 Oct 2026.
-// That pass had an AI researcher look each company up on the web and record
-// what it does, its relationship to Knape (end customer, OEM, partner
-// manufacturer, competitor, other) and a fit rating (Excellent / Good / Weak /
-// Poor). The tier then follows by fixed rules: partner -> T3, competitor -> X,
-// school/university name or domain -> Academic, Excellent -> T0 with 3+ people
-// registered else T1, Good (or Weak end customer/OEM) -> T2, rest -> Other.
-// The per-company reason is stored in accounts.spark_brief and shown in the
-// company sheet. Keep these hints in step with that rule set.
+// in the cockpit's _effective_tier_sql: every show company carries an
+// icp_score of 0, and its tier was written by an AI research pass (WorkBoat on
+// 24 Oct 2026; WEFTEC and SEMICON West on 27 Oct 2026 by
+// apps/leadgen/outreach/event_research.py). Each pass had an AI researcher
+// look each company up on the web and record what it does, its relationship to
+// Knape (end customer, OEM, partner manufacturer, competitor, other) and a fit
+// rating (Excellent / Good / Weak / Poor) with a one-sentence reason. The tier
+// then follows by fixed rules: partner -> T3, competitor -> X, school or
+// university name or domain -> Academic, Excellent -> T0 with a strong show
+// presence else T1, Good (or Weak end customer/OEM) -> T2, rest -> Other.
+// "Strong presence": 3+ people registered at WorkBoat (we hold its roster);
+// at WEFTEC and SEMICON West, where we have no registrant roster, exhibiting
+// counts, and a non-exhibitor needs 3+ known contacts. The reason is stored in
+// accounts.tier_reason (TierReason banner, "Why <tier>" in the company sheet);
+// tier_source/tier_model/tier_at record which pass set it. Keep these hints in
+// step with that rule set.
 export const TIERS: TierDef[] = [
 	{
 		key: "T0-HOT",
 		label: "T0 Hot",
-		hint: "Excellent fit (shipyard, vessel or fleet operator, naval architect, marine engineering firm, marine HVAC or mechanical contractor, offshore operator) with 3 or more people registered at the show. Contact first.",
+		hint: "Excellent fit with a strong presence at the show. Excellent means, for WorkBoat, a shipyard, vessel or fleet operator, naval architect, marine engineering firm, marine HVAC or mechanical contractor or offshore operator; for WEFTEC, a firm that designs, builds or runs water and wastewater plants, or builds odor-control or treatment systems with fans or blowers inside; for SEMICON West, a chipmaker with fabs, a fab or cleanroom builder or MEP firm, or a maker of exhaust abatement or scrubbers (at WEFTEC and SEMICON West only with a US presence). Strong presence means 3 or more people registered at WorkBoat; at WEFTEC and SEMICON West, exhibiting, or for a visitor 3 or more known contacts. Contact first.",
 		chipClass: ROSE,
 	},
 	{
 		key: "T1-WARM",
 		label: "T1 Warm",
-		hint: "Same excellent fit as T0, but fewer than 3 people registered at the show.",
+		hint: "Same excellent fit as T0, with a smaller presence at the show: fewer than 3 people registered at WorkBoat, or a SEMICON West visitor (not an exhibitor) with fewer than 3 known contacts.",
 		chipClass: AMBER,
 	},
 	{

@@ -8,7 +8,10 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Mail, Phone } from "lucide-react";
-import { TierChip } from "@/components/leadgen/tier-chip";
+import {
+	profileWithoutReason,
+	TierChip,
+} from "@/components/leadgen/tier-chip";
 import {
 	Sheet,
 	SheetContent,
@@ -19,6 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { leadgen } from "@/fetchers/leadgen/client";
 import type { Account, Person } from "@/fetchers/leadgen/types";
+import { tierByKey } from "@/lib/events/registry";
 
 type ContactsResponse = { items: Person[] };
 
@@ -47,6 +51,8 @@ export function CompanyDetailSheet({
 	});
 
 	const rows = people.data?.items ?? [];
+	const reason = (account?.tier_reason ?? "").trim();
+	const about = profileWithoutReason(account?.company_profile, reason);
 
 	return (
 		<Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -74,15 +80,24 @@ export function CompanyDetailSheet({
 				</SheetHeader>
 
 				<div className="flex-1 overflow-y-auto px-4 pb-6">
-					{/* The research notes behind the tier: what the company does and
-					    why it does or does not fit. Exhibitors that already had a
-					    directory blurb keep that text instead. */}
-					{account?.company_profile ? (
+					{/* The research notes behind the tier: why it does or does not
+					    fit (every researched tier, so a "why not" is visible here
+					    too), then what the company does. Exhibitors that already
+					    had a directory blurb keep that text as the description. */}
+					{reason ? (
+						<div className="mb-3 rounded-md border border-border bg-muted/30 p-3 text-sm">
+							<div className="mb-1 font-medium text-xs text-muted-foreground">
+								Why {tierByKey(account?.tier).label}
+							</div>
+							<p>{reason}</p>
+						</div>
+					) : null}
+					{about ? (
 						<div className="mb-4 rounded-md border border-border bg-muted/30 p-3 text-sm">
 							<div className="mb-1 font-medium text-xs text-muted-foreground">
-								About this company{account.industry ? ` · ${account.industry}` : ""}
+								About this company{account?.industry ? ` · ${account.industry}` : ""}
 							</div>
-							<p>{account.company_profile}</p>
+							<p>{about}</p>
 						</div>
 					) : null}
 					{people.isLoading ? (

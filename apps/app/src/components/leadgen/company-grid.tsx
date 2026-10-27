@@ -24,7 +24,11 @@ import { ExternalLink, Mail, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CompanyDetailSheet } from "@/components/leadgen/company-detail-sheet";
 import { SignalMeter } from "@/components/leadgen/signal-meter";
-import { TierChip, TierLegend } from "@/components/leadgen/tier-chip";
+import {
+	TierChip,
+	TierLegend,
+	TierReason,
+} from "@/components/leadgen/tier-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { leadgen } from "@/fetchers/leadgen/client";
 import type { Account, AccountsResponse } from "@/fetchers/leadgen/types";
@@ -160,6 +164,8 @@ function CompanyTile({
 				</div>
 				<SignalMeter value={signalFromTier(a.tier)} />
 			</div>
+
+			<TierReason tierKey={a.tier} reason={a.tier_reason} className="-mt-1" />
 
 			<div className="flex flex-wrap gap-1.5">
 				{a.tier ? <TierChip tierKey={a.tier} /> : null}
