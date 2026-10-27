@@ -175,6 +175,10 @@ SETTINGS_REGISTRY: list[dict[str, Any]] = [
              "credits never expire, and catch-all/unknown answers are not billed. Without it the "
              "system falls back to its own SMTP probe, which school mail gateways defeat — that "
              "is what the current bounce rate is."},
+    {"key": "ANTHROPIC_API_KEY", "group": "Keys", "type": "secret", "default": "",
+     "label": "Anthropic (Claude) API key",
+     "help": "Every AI step runs on Claude Haiku with this key: email drafting, company "
+             "research and tiering, contact extraction and inbox triage."},
 ]
 
 _BY_KEY = {s["key"]: s for s in SETTINGS_REGISTRY}
