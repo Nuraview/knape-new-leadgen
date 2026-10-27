@@ -3,7 +3,7 @@
 Waterfall per account:
 1. Locate a team/leadership/contact page on the org's own site (URL heuristics, then
    Serper ``site:<domain> ...`` when a key is configured).
-2. Claude-extract ``[{name, title, email, phone}]`` from the page text, keeping
+2. AI-extract ``[{name, title, email, phone}]`` from the page text, keeping
    Knape buyer roles (engineering, facilities/plant/operations, vessel/fleet
    superintendents, project managers, purchasing, owners/executives).
 3. Serper LinkedIn x-ray: ``site:linkedin.com/in "<title>" "<org>"`` → top hit.
@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
+from outreach.llm import generate_text, llm_enabled, parse_json_object
 from utils.http import get_text
 from utils.serper import serper_enabled, serper_search
 
@@ -50,7 +50,7 @@ _STAFF_PATH_HINTS: tuple[tuple[str, int], ...] = (
 _ROLE_KEEP = re.compile(
     r"engineer|naval architect|facilit|plant manager|maintenance|operations|superintendent|"
     r"port captain|project manager|construction manager|purchasing|procurement|buyer|"
-    r"supply chain|owner|president|general manager|\bceo\b|\bcoo\b|chief operating|founder",
+    r"supply chain|owner|president|general manager|\bceo\b|chief executive|\bcoo\b|chief operating|founder",
     re.I,
 )
 
@@ -167,10 +167,10 @@ def _serper_staff_page(domain: str, org_name: str) -> list[str]:
 
 
 def _extract_contacts_llm(page_text: str, org_name: str) -> list[dict]:
-    if not claude_enabled() or not page_text.strip():
+    if not llm_enabled() or not page_text.strip():
         return []
     try:
-        content = claude_generate_text(
+        content = generate_text(
             system_instruction=_EXTRACT_SYSTEM,
             user_text=json.dumps({"organization": org_name, "page_text": page_text[:14000]}),
             max_tokens=2048,

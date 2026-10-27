@@ -5,7 +5,7 @@ This is the playbook's middle layers wired together for Knape:
   evidence (state)  ->  Jev atomic judgments  ->  CODE composite score + confidence
   gate  ->  provenance written to lead_semantic + hot columns on accounts.
 
-Jev (``jev_llm``, on Claude) interprets meaning; all arithmetic (weights, thresholds, routing) stays here
+Jev (``jev_llm``, on ``outreach.llm``) interprets meaning; all arithmetic (weights, thresholds, routing) stays here
 in code, as the playbook requires. Nothing here sends emails or spends provider
 credits; it only decides and records. Callers use the verdicts to gate spend.
 """
@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from outreach.claude_llm import claude_model
+from outreach.llm import llm_model
 from outreach import cockpit_api as C
 from outreach import jev_llm as J
 from outreach import jev_questions as Q
@@ -97,12 +97,12 @@ def target_filter_account(account_id: int) -> dict[str, Any]:
     src = (state.get("company") or {}).get("website") or ""
     C.save_lead_semantic(account_id, "application", res["application"],
                          confidence=J.confidence(res["answers"], "application"),
-                         source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=claude_model())
+                         source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=llm_model())
     C.save_lead_semantic(account_id, "is_target", round(res["is_target"], 4),
                          confidence=abs(res["is_target"] - 0.5) * 2.0,
-                         source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=claude_model())
+                         source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=llm_model())
     C.save_lead_semantic(account_id, "relationship", res.get("relationship", ""),
-                         source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=claude_model())
+                         source_url=src, rubric_version=Q.RUBRIC_VERSION, jev_model=llm_model())
     return res
 
 
@@ -185,7 +185,7 @@ def semantic_enrich_account(account_id: int) -> dict[str, Any]:
     }
     for field, (value, conf) in fields.items():
         C.save_lead_semantic(account_id, field, value, confidence=conf, source_url=src,
-                             rubric_version=Q.RUBRIC_VERSION, jev_model=claude_model(), raw=ans.get(field.split("_")[0]))
+                             rubric_version=Q.RUBRIC_VERSION, jev_model=llm_model(), raw=ans.get(field.split("_")[0]))
 
     C.set_account_jev_summary(
         account_id,

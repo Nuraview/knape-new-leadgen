@@ -1,7 +1,7 @@
-"""Research a trade-show pool's companies with Claude + web search and tier them.
+"""Research a trade-show pool's companies with the AI model + web search and tier them.
 
 For each company in an event pool (``lead_source_bucket = 'event:<slug>'``) that
-has no tier yet, Claude looks the company up on the web (at most three searches)
+has no tier yet, the model (``outreach.llm``: OpenAI or Anthropic) looks the company up on the web (at most three searches)
 and records, through the forced ``record_company`` tool: its domain and how sure
 it is of it, what the company does, an industry bucket, its relationship to Knape
 and a fit rating with a one-sentence reason. The brief is the one the WorkBoat
@@ -53,13 +53,15 @@ from pathlib import Path
 from typing import Any
 
 from outreach import db
-from outreach.claude_llm import WEB_SEARCH_TOOL, ClaudeError, claude_messages, claude_model
+from outreach.llm import WEB_SEARCH_TOOL, LLMError, create_message, llm_model
 from utils.exclusions import normalize_company_key
 
-# $ per million tokens (input, output, cache read, cache write) and per search;
-# used only for the cost estimate printed at the end.
-PRICES = {"claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125)}
-SEARCH_PRICE = 10.0 / 1000
+# $ per million tokens (input, output, cache read, cache write) and $ per web
+# search, per model; used only for the cost estimate printed at the end.
+PRICES = {
+    "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125, 10.0 / 1000),
+    "gpt-5.4-mini": (0.75, 4.50, 0.075, 0.0, 10.0 / 1000),
+}
 
 PARTNERS = [
     "American Warming & Ventilating", "AbsolutAire", "Aprilaire", "Barry Blowers", "Soler & Palau",
@@ -312,12 +314,12 @@ def research(system: str, prompt: str) -> dict[str, Any]:
         data: dict[str, Any] = {}
         for attempt in range(3):
             try:
-                data = claude_messages(
+                data = create_message(
                     system=system, messages=messages, tools=tools, tool_choice=choice,
                     max_tokens=3000, timeout=180.0,
                 )
                 break
-            except ClaudeError as e:
+            except LLMError as e:
                 # The client already retried quickly; a sustained rate limit or
                 # overload gets a longer pause before giving up on this company.
                 if attempt < 2 and any(f"HTTP {c}" in str(e) for c in (429, 529, 500, 503)):
@@ -444,10 +446,13 @@ def summarize(path: Path, slug: str) -> None:
             else:
                 failed += 1
                 errors[rec.get("error", "")[:60]] = errors.get(rec.get("error", "")[:60], 0) + 1
-    pin, pout, pread, pwrite = PRICES.get(claude_model(), PRICES["claude-haiku-5-5"])
+    model = llm_model()
+    pin, pout, pread, pwrite, psearch = PRICES.get(model) or next(
+        (p for k, p in PRICES.items() if model.startswith(k)), PRICES["gpt-5.4-mini"]
+    )
     cost = (
         tot["in"] * pin + tot["out"] * pout + tot["cache_read"] * pread + tot["cache_write"] * pwrite
-    ) / 1e6 + tot["searches"] * SEARCH_PRICE
+    ) / 1e6 + tot["searches"] * psearch
     print(
         f"[{slug}] results ok={ok} failed_attempts={failed} tokens in={tot['in']:,} out={tot['out']:,} "
         f"cache_read={tot['cache_read']:,} cache_write={tot['cache_write']:,} web_searches={tot['searches']} "
@@ -458,7 +463,7 @@ def summarize(path: Path, slug: str) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Research and tier an event pool's companies with Claude + web search.")
+    ap = argparse.ArgumentParser(description="Research and tier an event pool's companies with AI + web search.")
     ap.add_argument("--event", required=True, choices=sorted(SHOWS))
     ap.add_argument("--limit", type=int, default=0, help="Research at most N companies this run (0 = all).")
     ap.add_argument("--concurrency", type=int, default=6)

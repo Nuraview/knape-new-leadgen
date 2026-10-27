@@ -107,13 +107,15 @@ Tables auto-create on first API boot. To import existing SQLite data, see
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `python main.py status`                         | Shows whether a pipeline command is running (uses `outreach_data/.pipeline_run.json`)                                       |
 | `python main.py` or `python main.py milestone1` | Fetch → ICP → **`1.xlsx`**                                                                                                  |
-| `python main.py milestone2-research`            | Fills `company_profile`, `active_projects`, `equipment_needs` (needs `ANTHROPIC_API_KEY` for real AI; Claude Haiku)         |
+| `python main.py milestone2-research`            | Fills `company_profile`, `active_projects`, `equipment_needs` (needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`; see `AI_PROVIDER`) |
 | `python main.py milestone2-enrich`              | Hunter.io finder + verifier → fills `email`, `email_verification_status`, scores; writes `email_verification_report.json`   |
-| `python main.py milestone2`                     | Claude research prep (optional), drafts, Instantly gate (`MILESTONE2_CLIENT_APPROVED` + optional Hunter gate before upload) |
+| `python main.py milestone2`                     | AI research prep (optional), drafts, Instantly gate (`MILESTONE2_CLIENT_APPROVED` + optional Hunter gate before upload)     |
 | `python main.py milestone2-dashboard`           | Local metrics HTTP UI                                                                                                       |
 | `python main.py cockpit-api`                    | Postgres-backed API for React cockpit UI (`/api/auth/login`, `/api/sync`, `/api/accounts`, `/api/accounts/{id}`)            |
 
 Configuration is **`config.py`** (reads **`.env`** next to it). Variable names and vendors are listed in **`.env.example`**.
+
+AI: every model call goes through **`outreach/llm.py`**. `AI_PROVIDER` (`openai` or `anthropic`; dashboard Keys tab or env) picks the provider; blank means Anthropic when `ANTHROPIC_API_KEY` is set, else OpenAI. Models: `OPENAI_MODEL` (default `gpt-5.4-mini`) / `ANTHROPIC_MODEL` (default `claude-haiku-5-5`).
 
 ## Layout
 

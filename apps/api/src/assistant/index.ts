@@ -1,5 +1,5 @@
 /**
- * The in-app assistant — Claude (Anthropic Messages API), with tools, server-side.
+ * The in-app assistant — a model with tools (utils/ai.ts: OpenAI or Anthropic), server-side.
  *
  * Answers questions about THIS instance's live data rather than in general:
  * "who should I call today", "why is nothing sending", "how many leads did we
@@ -8,7 +8,8 @@
  *
  * WHY THE MODEL NEVER RUNS IN THE BROWSER
  *
- * ANTHROPIC_API_KEY stays in this process. A key shipped to the client is a key
+ * The model key (OPENAI_API_KEY or ANTHROPIC_API_KEY, see utils/ai.ts) stays in
+ * this process. A key shipped to the client is a key
  * anyone can lift out of the bundle and spend, and this one is billed per
  * token. Same reasoning as the lead-gen proxy: one origin, secrets server-side.
  *
@@ -35,7 +36,7 @@ import {
   type MessagesResponse,
   type ToolResultBlock,
   type ToolUseBlock,
-} from "../utils/anthropic";
+} from "../utils/ai";
 import { requireCrmAccess } from "../utils/require-crm-access";
 import getBrand from "../utils/get-brand";
 
@@ -306,7 +307,7 @@ const TOOLS: Record<
   },
 };
 
-/** TOOLS in the Messages API shape: JSON Schema goes in `input_schema`. */
+/** TOOLS in the shared utils/ai shape: JSON Schema goes in `input_schema`. */
 function toolSchema() {
   return Object.entries(TOOLS).map(([name, t]) => ({
     name,
@@ -315,7 +316,7 @@ function toolSchema() {
   }));
 }
 
-/* ------------------------------------------------------------ anthropic -- */
+/* ----------------------------------------------------------------- model -- */
 
 /**
  * The assistant's instructions, with the instance's own identity substituted in.
@@ -359,7 +360,7 @@ Context you may be given: the page the user is currently looking at. Use it to m
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-/** One Messages API call, its failures turned into status codes the panel shows. */
+/** One model call, its failures turned into status codes the panel shows. */
 async function callModel(system: string, messages: Message[]): Promise<MessagesResponse> {
   try {
     return await createMessage(
@@ -375,11 +376,11 @@ async function callModel(system: string, messages: Message[]): Promise<MessagesR
     if (error instanceof AiNotConfigured) {
       throw new HTTPException(503, {
         message:
-          "The assistant is not configured — set ANTHROPIC_API_KEY on this deployment.",
+          "The assistant is not configured — set OPENAI_API_KEY or ANTHROPIC_API_KEY (AI_PROVIDER picks between them) on this deployment.",
       });
     }
     if (error instanceof AiUpstreamError) {
-      throw new HTTPException(502, { message: `Claude: ${error.message}` });
+      throw new HTTPException(502, { message: `AI: ${error.message}` });
     }
     throw error;
   }
@@ -388,7 +389,7 @@ async function callModel(system: string, messages: Message[]): Promise<MessagesR
 /**
  * One turn, with a tool loop.
  *
- * The Messages API stops with `stop_reason: "tool_use"` and one or more
+ * The model stops with `stop_reason: "tool_use"` and one or more
  * tool_use blocks; each is executed here and answered with a tool_result block
  * in the next user message, up to a small bound. The bound matters: a model
  * that loops on a failing tool would otherwise spend the account.
@@ -523,8 +524,8 @@ const assistant = new Hono<{ Variables: { userId: string } }>()
         role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
         content: m.content.slice(0, 4000),
       }));
-    // The window can open on an assistant reply; the Messages API wants the
-    // conversation to start with the user.
+    // The window can open on an assistant reply; the conversation should
+    // start with the user (Anthropic requires it).
     while (messages[0]?.role === "assistant") messages.shift();
 
     if (!messages.length) {

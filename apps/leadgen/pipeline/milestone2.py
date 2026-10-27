@@ -38,7 +38,7 @@ from config import (
     resolved_milestone2_db_path,
 )
 from outreach import campaign_store
-from outreach.claude_llm import claude_enabled, claude_model
+from outreach.llm import llm_enabled, llm_model, llm_provider
 from outreach.company_research import (
     API_ERROR_PREFIX,
     RESEARCH_OUTPUT_FIELDS,
@@ -293,7 +293,7 @@ def _cap_research_jobs(
     fetch_jobs: list[tuple[str, int, list[int]]],
 ) -> list[tuple[str, int, list[int]]]:
     if (
-        claude_enabled()
+        llm_enabled()
         and MILESTONE2_RESEARCH_MAX_API_CALLS > 0
         and len(fetch_jobs) > MILESTONE2_RESEARCH_MAX_API_CALLS
     ):
@@ -330,7 +330,7 @@ def _research_live_tag(r: dict | None, err: Exception | None) -> str:
         return "failed"
     reason = research_fallback_reason(r)
     if reason is None:
-        return "claude"
+        return "ai"
     return reason
 
 
@@ -338,7 +338,7 @@ def _execute_research_jobs(
     leads: list[dict],
     fetch_jobs: list[tuple[str, int, list[int]]],
 ) -> tuple[int, int, int, int, int]:
-    """Run Claude research jobs; mutate ``leads``.
+    """Run AI research jobs; mutate ``leads``.
 
     Prints **as each job finishes** so long HTTPS calls never look hung.
 
@@ -375,7 +375,7 @@ def _execute_research_jobs(
 
     print(
         f"  Live progress — {n_jobs} research job(s), {workers} worker(s). "
-        f"Lines appear each time a job finishes (Claude HTTPS can take 30–120s each).",
+        f"Lines appear each time a job finishes (model calls can take 30–120s each).",
         flush=True,
     )
 
@@ -454,7 +454,7 @@ def run_milestone2() -> None:
     for L in leads:
         _ensure_lead_source_bucket(L)
 
-    if MILESTONE2_RESEARCH_BEFORE_OUTREACH and claude_enabled():
+    if MILESTONE2_RESEARCH_BEFORE_OUTREACH and llm_enabled():
         fetch_jobs = _build_research_fetch_jobs(
             leads,
             share_by_company=MILESTONE2_RESEARCH_SHARE_BY_COMPANY,
@@ -469,7 +469,7 @@ def run_milestone2() -> None:
                 else "per-row"
             )
             print(
-                f"Milestone 2: AI research before outreach ({n_jobs} Claude job(s), {mode}), "
+                f"Milestone 2: AI research before outreach ({n_jobs} {llm_provider()} job(s), {mode}), "
                 f"concurrency={min(MILESTONE2_RESEARCH_CONCURRENCY, n_jobs)}."
             )
             t0 = time.perf_counter()
@@ -484,14 +484,14 @@ def run_milestone2() -> None:
                 print(f"  {failed} research job(s) failed (those rows unchanged).")
             if no_key_t or api_err_t:
                 print(
-                    f"  Research template rows (not live Claude): no_api_key={no_key_t}, "
-                    f"api_error={api_err_t}. See `company_profile` text and ANTHROPIC_MODEL."
+                    f"  Research template rows (not live AI): no_api_key={no_key_t}, "
+                    f"api_error={api_err_t}. See `company_profile` text and AI_PROVIDER / model settings."
                 )
-    elif MILESTONE2_RESEARCH_BEFORE_OUTREACH and not claude_enabled():
+    elif MILESTONE2_RESEARCH_BEFORE_OUTREACH and not llm_enabled():
         need = any(_needs_research(r) for r in leads)
         if need:
             print(
-                "Milestone 2: research columns empty — set ANTHROPIC_API_KEY (or run "
+                "Milestone 2: research columns empty — set OPENAI_API_KEY or ANTHROPIC_API_KEY (or run "
                 "`python main.py milestone2-research` after adding a key) for AI company profile / "
                 "projects / equipment text."
             )
@@ -528,8 +528,8 @@ def run_milestone2() -> None:
     jsonl_path = drafts_path / f"{run_id}_drafts.jsonl"
 
     if prepared:
-        if claude_enabled():
-            provider = f"Claude ({claude_model()})"
+        if llm_enabled():
+            provider = f"{llm_provider()} ({llm_model()})"
             print(
                 f"Milestone 2: drafting email sequences for {len(prepared)} lead(s) via {provider} "
                 f"(no line until each call returns — often 10–60s per lead).",
@@ -834,16 +834,16 @@ def run_milestone2_research() -> None:
         f"Milestone 2 research: {n_jobs} job(s) ({mode}), {len(leads)} rows, "
         f"concurrency={workers} (tune MILESTONE2_RESEARCH_CONCURRENCY vs rate limits)."
     )
-    if claude_enabled():
-        print(f"Milestone 2 research: Claude API key present, model={claude_model()!r}.", flush=True)
+    if llm_enabled():
+        print(f"Milestone 2 research: {llm_provider()} API key present, model={llm_model()!r}.", flush=True)
     else:
         print(
-            "Milestone 2 research: WARNING — no ANTHROPIC_API_KEY found (dashboard Keys tab or `.env`). "
+            f"Milestone 2 research: WARNING — no {llm_provider()} API key found (dashboard Keys tab or `.env`). "
             "The sheet will get placeholder text, not AI.",
             flush=True,
         )
 
-    provider = f"Claude ({claude_model()})" if claude_enabled() else "templates"
+    provider = f"{llm_provider()} ({llm_model()})" if llm_enabled() else "templates"
     events.run_started("milestone2-research")
     events.emit("research", f"AI research: {n_jobs} job(s) over {len(leads)} leads via {provider}", level="info", count=n_jobs)
 
@@ -863,13 +863,13 @@ def run_milestone2_research() -> None:
         print(
             f"Milestone 2 research: {no_key_t} row(s) still use the **no API key** template — "
             f"the process did not see a key at runtime. Fix `.env` variable names and remove blank "
-            f"ANTHROPIC_API_KEY= lines that override exports.",
+            f"OPENAI_API_KEY= / ANTHROPIC_API_KEY= lines that override exports.",
             flush=True,
         )
     if api_err_t:
         print(
-            f"Milestone 2 research: {api_err_t} row(s) used the **Claude API error** template — "
-            f"check billing, model name ({claude_model()!r}), and network. First line of "
+            f"Milestone 2 research: {api_err_t} row(s) used the **AI API error** template — "
+            f"check billing, model name ({llm_model()!r}), and network. First line of "
             f"`company_profile` on those rows has the error snippet.",
             flush=True,
         )

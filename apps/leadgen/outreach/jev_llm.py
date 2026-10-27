@@ -1,4 +1,4 @@
-"""Typed semantic decisions on Claude (``outreach.claude_llm``, Haiku by default).
+"""Typed semantic decisions on the shared LLM client (``outreach.llm``).
 
 Evaluates a piece of state against typed questions and returns STRUCTURED
 answers with confidence, instead of generating prose. Three primitives:
@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from outreach.claude_llm import ClaudeError, claude_messages
+from outreach.llm import LLMError, create_message
 
 _TOOL_NAME = "record_answers"
 _SYSTEM = (
@@ -131,11 +131,11 @@ def jev_decide(
     model: str | None = None,
     timeout: float = 60.0,
 ) -> dict[str, Any]:
-    """Answer every question about ``state`` in one Claude call; return the answers map.
+    """Answer every question about ``state`` in one model call; return the answers map.
 
     `state` is the facts (company, contact, evidence, offer). `questions` maps a
     question id to a builder result (noul/choice/score). Raises RuntimeError
-    (``ClaudeError``) when the key is missing, the API keeps failing (the client
+    (``LLMError``) when the key is missing, the API keeps failing (the client
     retries 429/5xx), or the model leaves a question unanswered.
     """
     if not questions:
@@ -148,7 +148,7 @@ def jev_decide(
         "description": "Record one typed answer (plus confidence where asked) per question id.",
         "input_schema": {"type": "object", "properties": props, "required": list(props)},
     }
-    data = claude_messages(
+    data = create_message(
         system=_SYSTEM,
         messages=[{"role": "user", "content": "STATE:\n" + json.dumps(state, ensure_ascii=False, default=str)}],
         model=model or "",
@@ -163,7 +163,7 @@ def jev_decide(
         None,
     )
     if not isinstance(raw, dict):
-        raise ClaudeError(f"no {_TOOL_NAME} tool call in response (stop_reason={data.get('stop_reason')})")
+        raise LLMError(f"no {_TOOL_NAME} tool call in response (stop_reason={data.get('stop_reason')})")
     answers: dict[str, Any] = {}
     missing: list[str] = []
     for qid, q in questions.items():
@@ -173,7 +173,7 @@ def jev_decide(
         else:
             answers[qid] = a
     if missing:
-        raise ClaudeError(f"model left questions unanswered or invalid: {', '.join(missing)}")
+        raise LLMError(f"model left questions unanswered or invalid: {', '.join(missing)}")
     return answers
 
 

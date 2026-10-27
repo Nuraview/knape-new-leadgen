@@ -1,7 +1,7 @@
 """Contact-layer pipeline step: attach named people (email/LinkedIn) to leads in 1.xlsx.
 
 Waterfall per account (see ``sources/contact_crawl.py``): own-site staff-page crawl →
-Claude extraction → email pattern inference → Serper LinkedIn x-ray. Public data only.
+AI extraction → email pattern inference → Serper LinkedIn x-ray. Public data only.
 
 Usage: ``python main.py contacts`` (env ``CONTACTS_MAX_ACCOUNTS`` caps a run, 0 = all).
 Primary contact fills the account's own lead row; extra contacts become appended rows

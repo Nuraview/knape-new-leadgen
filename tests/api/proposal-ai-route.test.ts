@@ -117,10 +117,10 @@ vi.mock("../../apps/api/src/proposal/write", () => ({
   updateProposalRecord: async () => ({ id: "x", grandTotal: "0.00" }),
 }));
 
-vi.mock("../../apps/api/src/utils/anthropic", async () => {
+vi.mock("../../apps/api/src/utils/ai", async () => {
   const actual = await vi.importActual<
-    typeof import("../../apps/api/src/utils/anthropic")
-  >("../../apps/api/src/utils/anthropic");
+    typeof import("../../apps/api/src/utils/ai")
+  >("../../apps/api/src/utils/ai");
   return {
     ...actual,
     isAiConfigured: () => true,

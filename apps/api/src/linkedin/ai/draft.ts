@@ -3,13 +3,13 @@ import {
   AiNotConfigured,
   completeJson,
   isAiConfigured,
-} from "../../utils/anthropic";
+} from "../../utils/ai";
 import { DRAFT_SCHEMA, findAngle, systemPrompt } from "./prompt";
 
 /**
  * A first draft for the composer.
  *
- * Reuses the shared Anthropic helper (utils/anthropic.ts) rather than adding a
+ * Reuses the shared AI helper (utils/ai.ts) rather than adding a
  * second way to call the same API — it already handles forced structured
  * output, refusals and truncation, and its "raw fetch, no SDK" rule is
  * load-bearing for the deploy image.
@@ -78,7 +78,7 @@ export async function draftPost(
     // 503, not 500: the feature is fine, this deployment just has no key.
     throw new HTTPException(503, {
       message:
-        "AI drafting is not configured — set ANTHROPIC_API_KEY on this deployment. You can still write the post by hand.",
+        "AI drafting is not configured — set OPENAI_API_KEY or ANTHROPIC_API_KEY on this deployment. You can still write the post by hand.",
     });
   }
 

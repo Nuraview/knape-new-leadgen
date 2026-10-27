@@ -19,7 +19,7 @@ import {
   nvLinkedinPostMedia,
   nvLinkedinPosts,
 } from "../database/crm-schema";
-import { isAiConfigured } from "../utils/anthropic";
+import { isAiConfigured } from "../utils/ai";
 import { requireCrmAccess } from "../utils/require-crm-access";
 import { draftPost } from "./ai/draft";
 import { ANGLES } from "./ai/prompt";

@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from outreach import brand
-from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
+from outreach.llm import generate_text, llm_enabled, llm_provider, parse_json_object
 
 # Written to spreadsheet / DB payloads from ``research_lead``.
 RESEARCH_OUTPUT_FIELDS: tuple[str, ...] = (
@@ -18,9 +18,9 @@ RESEARCH_OUTPUT_FIELDS: tuple[str, ...] = (
 
 # Markers embedded in ``company_profile`` when the model is not used (see ``research_lead``).
 _FALLBACK_MARKER_NO_API_KEY = "No API key:"
-# Provider-neutral prefix so rows written before the Claude cutover still match.
+# Provider-neutral prefix so rows written by any earlier provider still match.
 _FALLBACK_MARKER_API_ERROR = "AI research failed ("
-API_ERROR_PREFIX = "AI research failed (Claude error). "
+API_ERROR_PREFIX = "AI research failed (model error). "
 
 
 def research_fallback_reason(r: dict[str, Any]) -> str | None:
@@ -90,7 +90,7 @@ def _fallback_research(lead: dict[str, Any]) -> dict[str, str]:
         f"{company} is surfaced as a lead based on available sourcing data.{site_note} "
         f"Decision-maker context includes role «{title or 'unknown'}». "
         f"Signal category noted as «{cat or 'unknown'}». "
-        "No API key: set ANTHROPIC_API_KEY in the project `.env` or the dashboard Keys tab. "
+        "No API key: set OPENAI_API_KEY or ANTHROPIC_API_KEY (dashboard Keys tab or `.env`). "
     )
     projects = (
         f"From the captured signal alone: {sig[:600]}{'…' if len(sig) > 600 else ''}. "
@@ -127,7 +127,7 @@ def _fallback_after_api_error(lead: dict[str, Any], hint: str) -> dict[str, str]
         + ": "
         + API_ERROR_PREFIX
         + err_note
-        + " Retry later or check ANTHROPIC_API_KEY / billing / rate limits."
+        + " Retry later or check the AI provider key / billing / rate limits."
     )
     return base
 
@@ -179,7 +179,7 @@ def _normalize_research_parsed(parsed: dict[str, Any], lead: dict[str, Any]) -> 
 
 
 def research_lead(lead: dict[str, Any]) -> dict[str, str]:
-    if not claude_enabled():
+    if not llm_enabled():
         return _fallback_research(lead)
 
     facts = {
@@ -200,7 +200,7 @@ def research_lead(lead: dict[str, Any]) -> dict[str, str]:
     }
     user_text = json.dumps({"facts": facts}, ensure_ascii=False)
     try:
-        content = claude_generate_text(
+        content = generate_text(
             system_instruction=_research_system(),
             user_text=user_text,
             max_tokens=3000,
@@ -211,5 +211,5 @@ def research_lead(lead: dict[str, Any]) -> dict[str, str]:
     except (RuntimeError, KeyError, ValueError, json.JSONDecodeError, TypeError) as e:
         from utils import pipeline_events
 
-        pipeline_events.note_vendor_error("Claude", e)
+        pipeline_events.note_vendor_error("OpenAI" if llm_provider() == "openai" else "Anthropic", e)
         return _fallback_after_api_error(lead, str(e))

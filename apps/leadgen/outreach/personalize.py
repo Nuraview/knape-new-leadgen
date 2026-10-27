@@ -10,7 +10,7 @@ from config import (
     OUTREACH_SUBDOMAIN,
 )
 from outreach import brand
-from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
+from outreach.llm import llm_enabled, generate_text, parse_json_object
 
 
 def _first_name(person_name: str) -> str:
@@ -134,7 +134,7 @@ def _template_sequence(lead: dict[str, Any], n_steps: int, angle: str | None = N
 
 def generate_sequence(lead: dict[str, Any]) -> list[dict[str, Any]]:
     n = max(2, min(5, MILESTONE2_SEQUENCE_STEPS))
-    if not claude_enabled():
+    if not llm_enabled():
         return _template_sequence(lead, n)
 
     _brief = brand.business_brief()
@@ -163,7 +163,7 @@ def generate_sequence(lead: dict[str, Any]) -> list[dict[str, Any]]:
         default=str,
     )
     try:
-        content = claude_generate_text(
+        content = generate_text(
             system_instruction=system,
             user_text=user_text,
             max_tokens=4096,

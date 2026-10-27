@@ -42,7 +42,7 @@ from typing import Any
 
 import config  # noqa: F401 — imported for its dotenv side effect
 from outreach import db, email_store, imap_inbox
-from outreach.claude_llm import claude_enabled, claude_generate_text, parse_json_object
+from outreach.llm import llm_enabled, generate_text, parse_json_object
 from utils import pipeline_events
 
 # Bounded so one pass cannot run away with the API budget or the IMAP session.
@@ -143,10 +143,10 @@ def _ask_model(subject: str, body: str) -> dict[str, Any] | None:
     Unavailable must degrade to "leave it alone", never to a guess: a wrong
     classification here silently stops a real prospect's follow-ups.
     """
-    if not claude_enabled():
+    if not llm_enabled():
         return None
     try:
-        text = claude_generate_text(
+        text = generate_text(
             system_instruction=(
                 "You triage replies to a B2B cold outreach campaign. " + _SCHEMA_HINT
             ),

@@ -39,7 +39,7 @@ import {
   type HouseTemplate,
 } from "./house-template";
 import { createJob, findActiveJobForLead, getJob, runJob } from "./jobs";
-import { completeJson, isAiConfigured } from "../../utils/anthropic";
+import { completeJson, isAiConfigured } from "../../utils/ai";
 import {
   buildPricingRows,
   engagementKindOf,
@@ -61,7 +61,7 @@ function requireConfigured() {
   if (!isAiConfigured()) {
     throw new HTTPException(503, {
       message:
-        "Proposal AI is not configured on this server — ANTHROPIC_API_KEY is missing.",
+        "Proposal AI is not configured on this server — set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
     });
   }
 }

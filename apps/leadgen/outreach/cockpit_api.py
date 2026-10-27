@@ -3393,7 +3393,7 @@ def lead_activity(account_id: int, _user: dict[str, Any] = Depends(_auth_user)) 
 def lead_email_draft(
     account_id: int, body: EmailDraftInput, _user: dict[str, Any] = Depends(_auth_user)
 ) -> dict[str, Any]:
-    """Generate (Claude) and store a draft email sequence for this lead."""
+    """Generate (AI, see ``outreach.llm``) and store a draft email sequence for this lead."""
     from outreach import email_store
     from outreach.email_drafting import draft_email_sequence
     from outreach.messaging_angles import pick_angle

@@ -108,7 +108,7 @@ booth-scan file (values like `T0-HOT`, `T3-PARTNER`), or set it in the database.
 
 `python -m outreach.event_research --event weftec-2026 [--limit N] [--dry-run]
 [--concurrency 6]` sets `tier` for every company in a pool that has none. For
-each company name, Claude (Haiku, via `outreach/claude_llm.py`) runs up to three
+each company name, the AI model (via `outreach/llm.py`: OpenAI gpt-5.4-mini or Claude Haiku, per the `AI_PROVIDER` setting) runs up to three
 web searches with a show-specific brief and records the domain, a description,
 an industry bucket, the relationship to Knape and a fit rating with a one-line
 reason. The tier follows by fixed rules (`tier_for`): partner -> T3, competitor
@@ -132,21 +132,24 @@ were backfilled into `tier_reason`.
 `contacts.email` for people in a pool who have a name but no address. The mail
 domain is the one real addresses at the same account use, else the website's;
 a domain shared by three or more different companies (a registration agency)
-is refused. If real addresses on that domain already show its format, only that
-address is tried; otherwise the formats the name allows are tried (initial-only
+is refused. If real addresses on that domain already show its format(s), only
+those are tried; otherwise the formats the name allows are tried (initial-only
 names get jsmith, j.smith, smithj, j_smith, smith; full first names add
 john.smith, johnsmith, john and similar), on at most two people per domain.
-Every address is checked by the self-hosted Reacher (`reacher_verify`, shared
-30-day cache, one new check per `--interval` seconds, same blocklist and
-no-answer safety stops as the WorkBoat finder). Kept: a confirmed mailbox
-(confidence 0.9, `email_status` deliverable), or, only where the format is
-evidenced by real addresses, a catch-all or unknown answer that
+Names that are departments ("Support Team") are skipped. Every address is
+checked by the self-hosted Reacher (`reacher_verify`, shared 30-day cache, one
+new check per `--interval` seconds). The run stops if Reacher itself stops
+answering, if mail servers of two different domains reply with blocklist
+wording, or if six domains give no answer within twelve checks. Kept: a
+confirmed mailbox (confidence 0.9, `email_status` deliverable), or, only where
+the format is evidenced by real addresses, a catch-all or unknown answer that
 `send_gate` would send (confidence 0.7, `format_evidenced`). Never kept: a
-catch-all or unknown answer on a guessed format, an invalid mailbox, a timeout.
-Writes only empty emails, with `source_kind = 'permutation-verified'`, copying
-each row to `_bak_permute_contacts_<date>` first; partners, competitors,
-schools and X-OTHER are skipped. Every check and outcome goes to the JSONL log,
-and a re-run skips people already settled on the same domain.
+catch-all or unknown answer on a guessed format, a "risky" answer from a
+domain that is not catch-all, an invalid mailbox, a timeout. Writes only empty
+emails, with `source_kind = 'permutation-verified'`, copying each row to
+`_bak_permute_contacts_<date>` first; partners, competitors, schools and
+X-OTHER are skipped. Every check and outcome goes to the JSONL log, and a
+re-run skips people already settled on the same domain.
 
 ## Enrichment and sending
 

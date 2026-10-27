@@ -175,10 +175,18 @@ SETTINGS_REGISTRY: list[dict[str, Any]] = [
              "credits never expire, and catch-all/unknown answers are not billed. Without it the "
              "system falls back to its own SMTP probe, which school mail gateways defeat — that "
              "is what the current bounce rate is."},
+    {"key": "AI_PROVIDER", "group": "Keys", "type": "str", "default": "",
+     "label": "AI provider (openai or anthropic)",
+     "help": "Which model runs every AI step: email drafting, company research and tiering, "
+             "contact extraction, inbox triage and lead scoring. \"openai\" uses the OpenAI key "
+             "(gpt-5.4-mini), \"anthropic\" the Anthropic key (Claude Haiku). Blank picks Anthropic "
+             "when its key is set, else OpenAI."},
+    {"key": "OPENAI_API_KEY", "group": "Keys", "type": "secret", "default": "",
+     "label": "OpenAI API key",
+     "help": "Used for every AI step when the AI provider is \"openai\"."},
     {"key": "ANTHROPIC_API_KEY", "group": "Keys", "type": "secret", "default": "",
      "label": "Anthropic (Claude) API key",
-     "help": "Every AI step runs on Claude Haiku with this key: email drafting, company "
-             "research and tiering, contact extraction and inbox triage."},
+     "help": "Used for every AI step when the AI provider is \"anthropic\"."},
 ]
 
 _BY_KEY = {s["key"]: s for s in SETTINGS_REGISTRY}

@@ -202,7 +202,7 @@ function RouteComponent() {
     qc.invalidateQueries({ queryKey: ["leadgen", "lead-email", accountId] });
 
   /*
-   * The cockpit answers 200 whether or not it actually reached Claude: with no
+   * The cockpit answers 200 whether or not it actually reached the AI model: with no
    * API key, draft_email_sequence() falls back to the canned template sequence
    * and reports provider="template". That failure is invisible — a draft
    * appears, it just is not the AI's — and it ran for ten days before anyone
@@ -626,8 +626,8 @@ function RouteComponent() {
                 {usedTemplate ? (
                   <p className="mt-2 text-xs text-amber-500">
                     This draft came from the built-in template, not the AI — the
-                    cockpit could not reach Claude (no Anthropic key, or the call
-                    failed), so it fell back. The
+                    cockpit could not reach the AI model (no API key for the
+                    selected provider, or the call failed), so it fell back. The
                     copy below is generic and needs editing before it goes out.
                   </p>
                 ) : null}

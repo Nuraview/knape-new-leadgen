@@ -1,8 +1,8 @@
-"""AI email-sequence drafting via Claude (``outreach.claude_llm``, Haiku by default).
+"""AI email-sequence drafting via ``outreach.llm`` (OpenAI or Anthropic, per ``AI_PROVIDER``).
 
 Produces the first email + scheduled follow-ups from a lead's context. Falls
 back to the deterministic template sequence (``personalize._template_sequence``)
-if Claude is unavailable, so the Send flow always has copy to work with.
+if the model is unavailable, so the Send flow always has copy to work with.
 """
 
 from __future__ import annotations
@@ -17,10 +17,11 @@ from config import (
     OUTREACH_SENDER_NAME,
 )
 from outreach import brand
-from outreach.claude_llm import (
-    ClaudeError,
-    claude_enabled,
-    claude_generate_text,
+from outreach.llm import (
+    LLMError,
+    generate_text,
+    llm_enabled,
+    llm_provider,
     parse_json_object,
 )
 from outreach.personalize import _gaps_for_steps, _template_sequence
@@ -52,12 +53,12 @@ def _coerce_steps(raw_steps: Any, n: int, gaps: list[int]) -> list[dict[str, Any
 def draft_email_sequence(
     lead: dict[str, Any], angle: str | None = None
 ) -> tuple[list[dict[str, Any]], str]:
-    """Return (steps, provider). provider is 'claude' or 'template'.
+    """Return (steps, provider). provider is 'openai', 'claude' or 'template'.
 
     Each step: ``{subject, body, delay_after_prev_days}`` (step 0 delay = 0).
     When ``angle`` is given, the copy is written in that messaging angle's voice
     and always carries its value-add link (falls back to that angle's canonical
-    template copy if Claude is unavailable).
+    template copy if the model is unavailable).
     """
     # Dashboard settings win over env/config (adjustable without a restart).
     try:
@@ -69,7 +70,7 @@ def draft_email_sequence(
         steps_setting, sender_setting = MILESTONE2_SEQUENCE_STEPS, ""
     n = max(2, min(5, steps_setting))
     gaps = _gaps_for_steps(n)
-    if not claude_enabled():
+    if not llm_enabled():
         return _template_sequence(lead, n, angle), "template"
 
     sender = sender_setting or OUTREACH_FROM_NAME or OUTREACH_SENDER_NAME
@@ -159,7 +160,7 @@ def draft_email_sequence(
         default=str,
     )
     try:
-        content = claude_generate_text(
+        content = generate_text(
             system_instruction=system,
             user_text=user_text,
             max_tokens=max(4096, 900 * n),
@@ -180,8 +181,8 @@ def draft_email_sequence(
 
             for s in steps:
                 s["body"] = ensure_value_link(s["body"], angle or "")
-            return steps[:n], "claude"
-    except (ClaudeError, ValueError, KeyError, json.JSONDecodeError):
+            return steps[:n], ("openai" if llm_provider() == "openai" else "claude")
+    except (LLMError, ValueError, KeyError, json.JSONDecodeError):
         pass
     return _template_sequence(lead, n, angle), "template"
 
