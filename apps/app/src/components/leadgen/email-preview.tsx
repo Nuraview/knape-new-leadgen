@@ -64,6 +64,21 @@ export function EmailPreview({
     );
   }
 
+  // A plain-text instance (EMAIL_PLAIN_TEXT) answers with an empty `html` and
+  // the real message in `text`; an empty iframe there read as a broken preview.
+  if (!preview.data?.html && preview.data?.text) {
+    return (
+      <pre
+        className={
+          className ??
+          "max-h-[32rem] w-full overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background p-4 font-sans text-sm leading-relaxed"
+        }
+      >
+        {preview.data.text}
+      </pre>
+    );
+  }
+
   return (
     <iframe
       title="Email preview"

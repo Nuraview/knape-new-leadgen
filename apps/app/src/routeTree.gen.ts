@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DeviceRouteImport } from './routes/device'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as TestErrorRouteImport } from './routes/test-error'
+import { Route as Workboat2026RouteImport } from './routes/workboat-2026'
 import { Route as LayoutAuthenticatedRouteImport } from './routes/_layout/_authenticated'
 import { Route as AuthCheckEmailRouteImport } from './routes/auth/check-email'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
@@ -112,6 +113,11 @@ const PortalRoute = PortalRouteImport.update({
 const TestErrorRoute = TestErrorRouteImport.update({
   id: '/test-error',
   path: '/test-error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Workboat2026Route = Workboat2026RouteImport.update({
+  id: '/workboat-2026',
+  path: '/workboat-2026',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LayoutAuthenticatedRoute = LayoutAuthenticatedRouteImport.update({
@@ -543,6 +549,7 @@ export interface FileRoutesByFullPath {
   '/device': typeof DeviceRouteWithChildren
   '/portal': typeof PortalRouteWithChildren
   '/test-error': typeof TestErrorRoute
+  '/workboat-2026': typeof Workboat2026Route
   '/auth/check-email': typeof AuthCheckEmailRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
@@ -617,6 +624,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRouteWithChildren
   '/portal': typeof PortalRouteWithChildren
   '/test-error': typeof TestErrorRoute
+  '/workboat-2026': typeof Workboat2026Route
   '/auth/check-email': typeof AuthCheckEmailRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
@@ -692,6 +700,7 @@ export interface FileRoutesById {
   '/device': typeof DeviceRouteWithChildren
   '/portal': typeof PortalRouteWithChildren
   '/test-error': typeof TestErrorRoute
+  '/workboat-2026': typeof Workboat2026Route
   '/_layout/_authenticated': typeof LayoutAuthenticatedRouteWithChildren
   '/auth/check-email': typeof AuthCheckEmailRoute
   '/auth/sign-in': typeof AuthSignInRoute
@@ -770,6 +779,7 @@ export interface FileRouteTypes {
     | '/device'
     | '/portal'
     | '/test-error'
+    | '/workboat-2026'
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
@@ -844,6 +854,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/portal'
     | '/test-error'
+    | '/workboat-2026'
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
@@ -918,6 +929,7 @@ export interface FileRouteTypes {
     | '/device'
     | '/portal'
     | '/test-error'
+    | '/workboat-2026'
     | '/_layout/_authenticated'
     | '/auth/check-email'
     | '/auth/sign-in'
@@ -996,6 +1008,7 @@ export interface RootRouteChildren {
   DeviceRoute: typeof DeviceRouteWithChildren
   PortalRoute: typeof PortalRouteWithChildren
   TestErrorRoute: typeof TestErrorRoute
+  Workboat2026Route: typeof Workboat2026Route
   InvoiceInvoiceIdRoute: typeof InvoiceInvoiceIdRoute
   McpAuthorizeRoute: typeof McpAuthorizeRoute
   PostTokenRoute: typeof PostTokenRoute
@@ -1046,6 +1059,13 @@ declare module '@tanstack/react-router' {
       path: '/test-error'
       fullPath: '/test-error'
       preLoaderRoute: typeof TestErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workboat-2026': {
+      id: '/workboat-2026'
+      path: '/workboat-2026'
+      fullPath: '/workboat-2026'
+      preLoaderRoute: typeof Workboat2026RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_layout/_authenticated': {
@@ -1817,6 +1837,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeviceRoute: DeviceRouteWithChildren,
   PortalRoute: PortalRouteWithChildren,
   TestErrorRoute: TestErrorRoute,
+  Workboat2026Route: Workboat2026Route,
   InvoiceInvoiceIdRoute: InvoiceInvoiceIdRoute,
   McpAuthorizeRoute: McpAuthorizeRoute,
   PostTokenRoute: PostTokenRoute,

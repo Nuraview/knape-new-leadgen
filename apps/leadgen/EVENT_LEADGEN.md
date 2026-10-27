@@ -104,6 +104,50 @@ it is the authoritative, human-or-classifier-set value, so it is never guessed
 from the public directory. To set it deliberately, include a `tier` column in a
 booth-scan file (values like `T0-HOT`, `T3-PARTNER`), or set it in the database.
 
+### Research and tier a pool with AI (`outreach/event_research.py`)
+
+`python -m outreach.event_research --event weftec-2026 [--limit N] [--dry-run]
+[--concurrency 6]` sets `tier` for every company in a pool that has none. For
+each company name, Claude (Haiku, via `outreach/claude_llm.py`) runs up to three
+web searches with a show-specific brief and records the domain, a description,
+an industry bucket, the relationship to Knape and a fit rating with a one-line
+reason. The tier follows by fixed rules (`tier_for`): partner -> T3, competitor
+-> X-COMPETITOR, school -> X-ACADEMIC, Excellent -> T0 with a strong show
+presence else T1, Good (or Weak end customer/OEM) -> T2, the rest -> X-OTHER.
+Strong presence is exhibiting, or 3 or more contacts on a non-exhibitor account
+(WEFTEC and SEMICON have no registrant roster, so a contact count there means
+reachability, not presence). The reason goes to `accounts.tier_reason` and is
+shown on Hot, Warm and ICP leads; `tier_source`, `tier_model` and `tier_at`
+record the pass. A tier set by hand is never overwritten, the pool is copied to
+`_bak_accounts_tier_<slug>_<date>` before the first write, and every result is
+logged to `event_research_<slug>.jsonl` so a re-run resumes. `--dry-run`
+researches and logs without writing; `--apply-only` writes logged results.
+WorkBoat was tiered the same way on 24 Oct 2026 by a one-off pass whose reasons
+were backfilled into `tier_reason`.
+
+### Find missing emails by name permutation (`sources/email_permute.py`)
+
+`python -m sources.email_permute --event semicon-2026 [--dry-run]
+[--interval 8] [--max-probes N] [--limit DOMAINS] [--log path.jsonl]` fills
+`contacts.email` for people in a pool who have a name but no address. The mail
+domain is the one real addresses at the same account use, else the website's;
+a domain shared by three or more different companies (a registration agency)
+is refused. If real addresses on that domain already show its format, only that
+address is tried; otherwise the formats the name allows are tried (initial-only
+names get jsmith, j.smith, smithj, j_smith, smith; full first names add
+john.smith, johnsmith, john and similar), on at most two people per domain.
+Every address is checked by the self-hosted Reacher (`reacher_verify`, shared
+30-day cache, one new check per `--interval` seconds, same blocklist and
+no-answer safety stops as the WorkBoat finder). Kept: a confirmed mailbox
+(confidence 0.9, `email_status` deliverable), or, only where the format is
+evidenced by real addresses, a catch-all or unknown answer that
+`send_gate` would send (confidence 0.7, `format_evidenced`). Never kept: a
+catch-all or unknown answer on a guessed format, an invalid mailbox, a timeout.
+Writes only empty emails, with `source_kind = 'permutation-verified'`, copying
+each row to `_bak_permute_contacts_<date>` first; partners, competitors,
+schools and X-OTHER are skipped. Every check and outcome goes to the JSONL log,
+and a re-run skips people already settled on the same domain.
+
 ## Enrichment and sending
 
 Enrichment reuses the existing engine. `resolve_account` finds each company's
@@ -117,12 +161,43 @@ the event's `data_batch` (for example `weftec-2026`), review the list, and enrol
 them into a campaign. Send in small batches, for example 50 at a time, and let
 the open, bounce, reply, and unsubscribe tracking run as usual.
 
+## Per-show messaging angles (Possible messaging angles tab)
+
+Show pools get copy written for that show instead of the ten general angles.
+`outreach/messaging_angles.py` holds `EVENT_ANGLE_SETS[slug]` (show, dates,
+sample lead, angles); `pick_angle` routes any lead tagged
+`lead_source_bucket = 'event:<slug>'` to its show's set, and each step carries a
+`day` offset that `angle_schedule` turns into send dates (weekends and
+Thanksgiving skipped; for a pre-show set the tail is clamped to the last send
+day before the show, at least two days apart, and anything that no longer fits
+is skipped).
+
+- `workboat-2026` (`wb_*`): four angles, opener plus six follow-ups, 1-2 emails a
+  week ending Tue 1 Dec. Peter is not exhibiting; the copy is a Houston rep for
+  Texas and Louisiana writing before the show. Every email links to the public
+  landing page `https://crm.knapesolutions.com/workboat-2026`
+  (`apps/app/src/routes/workboat-2026.tsx`), whose form feeds the normal inbound
+  capture (`/api/leadgen-public/inquiry` on the CRM API, forwarded to the
+  cockpit's `POST /api/public/sample-request`; it shows on the Inbound page with
+  source `workboat-2026-landing`).
+- `semicon-2026` (`semi_*`): six post-show angles, four steps each.
+
+The landing URL must be in `OUTREACH_APPROVED_LINKS`, or `enforce_approved_links`
+rewrites it and the WorkBoat angles fall back to the site root (the tab warns).
+
+The client reviews each angle under SHOWS > show > Possible messaging angles
+(`/events/<slug>?view=angles`), backed by `GET /api/emails/angles?event=<slug>`
+and `POST /api/emails/angles/<key>/review`, stored in `event_angle_reviews`.
+Approval is a record only: it sends nothing, and show pools stay out of
+automatic sending.
+
 ## Suggested sequencing
 
 - WEFTEC first, because Knape attended recently and recall is high. Collect,
   enrich, review, then send in batches of about 50.
-- WorkBoat second. Collect Knape's booth scans now, but hold the send until about
-  two to three weeks before the 2 December 2026 show rather than months ahead.
+- WorkBoat second. Peter is not exhibiting (his territory is Texas and a bit of
+  Louisiana), so the approved WorkBoat angles run 1-2 emails a week from approval
+  until the day before the 2 December 2026 show.
 
 ## Files added for this work
 

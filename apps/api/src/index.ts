@@ -43,6 +43,7 @@ import linkedin from "./linkedin";
 import linkedinPublic from "./linkedin/public";
 import portal, { portalPublic } from "./portal";
 import leadgen from "./leadgen";
+import leadgenPublic from "./leadgen/public";
 import assistant from "./assistant";
 import mcpRoutes, { mcpWellKnownRoutes } from "./mcp";
 import { migrateColumns } from "./migrations/column-migration";
@@ -360,6 +361,9 @@ export function createApp() {
   // Scheduler share links. Pre-auth on purpose: the token IS the credential,
   // and a recipient with no CRM account must not meet a sign-in wall.
   api.route("/linkedin-public", linkedinPublic);
+  // Public landing-page enquiries (the WorkBoat 2026 page): pre-session, since
+  // the visitor has no account; forwarded to the cockpit's own public capture.
+  api.route("/leadgen-public", leadgenPublic);
 
   /*
    * Proposal asset uploads. Mounted at the LEGACY path on purpose —

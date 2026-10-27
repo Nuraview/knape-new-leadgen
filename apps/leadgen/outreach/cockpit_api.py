@@ -604,6 +604,16 @@ def _init_db() -> None:
         conn.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS segment TEXT")
         conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS captured_by TEXT")
         conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS repeat_attendee INTEGER DEFAULT 0")
+        # Why a show account has its tier: the AI research pass's one-line
+        # justification (shown on Hot/Warm/ICP cards), which pass set it
+        # (e.g. 'ai-research-20261024'), the model, and when.
+        for col, typ in (
+            ("tier_reason", "TEXT"),
+            ("tier_source", "TEXT"),
+            ("tier_model", "TEXT"),
+            ("tier_at", "DOUBLE PRECISION"),
+        ):
+            conn.execute(f"ALTER TABLE accounts ADD COLUMN IF NOT EXISTS {col} {typ}")
 
         # --- Jev semantic layer: raw evidence text + interpreted fields --------
         # account_pages keeps the crawled page TEXT that Jev classifies, which the
@@ -659,6 +669,23 @@ def _init_db() -> None:
         # Per-contact buyer routing from Jev.
         conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS jev_role_class TEXT")
         conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS jev_proximity DOUBLE PRECISION")
+        # Peter's review of each per-show messaging angle (Possible messaging
+        # angles tab). One row per angle key; approval is a review record only and
+        # sends nothing. copy_hash is the angle's template copy at review time, so
+        # an edit after approval shows up as needing another look.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS event_angle_reviews (
+                angle_key TEXT PRIMARY KEY,
+                event_slug TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                note TEXT NOT NULL DEFAULT '',
+                reviewed_by TEXT NOT NULL DEFAULT '',
+                reviewed_at DOUBLE PRECISION,
+                copy_hash TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -2191,6 +2218,7 @@ def list_accounts(
                    lead_source_bucket, fresh_signal,
                    {_effective_tier_sql()} AS tier,
                    COALESCE(segment, '') AS segment,
+                   COALESCE(tier_reason, '') AS tier_reason,
                    swot_json,
                    COALESCE(data_batch, '') AS data_batch,
                    (SELECT COUNT(*) FROM contacts c WHERE c.account_id = accounts.id) AS contacts_count,
@@ -3293,6 +3321,8 @@ def _account_lead_context(account_id: int) -> tuple[dict[str, Any], dict[str, An
             "signal_category": a.get("signal_category"),
             "signal_evidence": a.get("signal_evidence"),
             "equipment_needs": a.get("equipment_needs"),
+            # Routes a show-pool lead ('event:<slug>') to its show's angle set.
+            "lead_source_bucket": a.get("lead_source_bucket") or "",
             "company_profile": a.get("spark_brief") or a.get("company_profile"),
             "active_projects": a.get("active_projects"),
             "icp_score": a.get("icp_enhanced_score") or a.get("icp_score"),
@@ -3330,7 +3360,7 @@ def lead_email_get(account_id: int, _user: dict[str, Any] = Depends(_auth_user))
         "suggested_person_name": (ctx[0].get("person_name") or "") if ctx else "",
         "inboxes": inboxes,
         "suggested_inbox_id": suggested_inbox,
-        "angles": list_angles(),
+        "angles": list_angles(ctx[0] if ctx else None),
         "suggested_angle": suggested_angle,
     }
 
@@ -3363,7 +3393,7 @@ def lead_activity(account_id: int, _user: dict[str, Any] = Depends(_auth_user)) 
 def lead_email_draft(
     account_id: int, body: EmailDraftInput, _user: dict[str, Any] = Depends(_auth_user)
 ) -> dict[str, Any]:
-    """Generate (OpenAI) and store a draft email sequence for this lead."""
+    """Generate (Claude) and store a draft email sequence for this lead."""
     from outreach import email_store
     from outreach.email_drafting import draft_email_sequence
     from outreach.messaging_angles import pick_angle
@@ -3548,7 +3578,10 @@ def emails_send_approved(body: SendApprovedInput, _user: dict[str, Any] = Depend
 
 
 @app.get("/api/emails/angles")
-def emails_angles(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]:
+def emails_angles(
+    event: str = Query(default=""),
+    _user: dict[str, Any] = Depends(_auth_user),
+) -> dict[str, Any]:
     """The ten messaging angles, each rendered against a sample lead.
 
     The angle list was only reachable through /api/leads/{id}/email, so
@@ -3556,7 +3589,16 @@ def emails_angles(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]
     lead to ask about. Each angle comes back with its steps already filled so
     the campaign wizard can show what the angle actually says, and the follow-up
     ladder that comes with it, before anything is drafted.
+
+    ``?event=<slug>`` returns that show's own angle set instead (the "Possible
+    messaging angles" tab): rendered against a lead from the show's pool, with
+    dated send plans, reach counts and the client's review status. Read-only.
     """
+    if event.strip():
+        from outreach import angle_reviews
+
+        return angle_reviews.event_payload(event, _effective_tier_sql("a."))
+
     from outreach.email_drafting import followup_gap_days
     from outreach.messaging_angles import ANGLES, render_angle_steps
 
@@ -3586,6 +3628,32 @@ def emails_angles(_user: dict[str, Any] = Depends(_auth_user)) -> dict[str, Any]
             ],
         })
     return {"items": out, "sample": sample}
+
+
+class AngleReviewInput(BaseModel):
+    event: str
+    status: str  # pending | approved | changes_requested
+    note: str = ""
+
+
+@app.post("/api/emails/angles/{angle_key}/review")
+def emails_angle_review(
+    angle_key: str, body: AngleReviewInput, user: dict[str, Any] = Depends(_auth_user)
+) -> dict[str, Any]:
+    """Approve a per-show angle, or send it back with a note.
+
+    Records the verdict only. Nothing is drafted, queued or sent, and the show
+    pools stay out of automatic sending whatever the status.
+    """
+    from outreach import angle_reviews
+
+    try:
+        review = angle_reviews.set_review(
+            body.event.strip().lower(), angle_key, body.status, body.note, user.get("email") or ""
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {"review": review, "sent": 0}
 
 
 class RememberInput(BaseModel):
@@ -4338,9 +4406,13 @@ def _sample_rate_ok(ip: str) -> bool:
 def public_sample_request(
     body: SampleRequestInput, request: Request, background: BackgroundTasks
 ) -> dict[str, Any]:
-    """Public (unauthenticated) lead capture for the .net landing page.
+    """Public (unauthenticated) lead capture for landing-page forms.
 
-    Served same-origin via the marketing site's nginx proxy, so no CORS.
+    The WorkBoat 2026 page (/workboat-2026 on the CRM host) posts here through
+    the CRM API's /api/leadgen-public/inquiry forwarder, server to server, with
+    the visitor's IP in X-Real-IP so the per-IP limit stays per visitor. The
+    company goes in ``school`` (shown as Organisation), the interest in
+    ``school_type`` (Segment) and the message in ``notes``.
     """
     from outreach import sample_leads
 

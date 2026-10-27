@@ -191,7 +191,7 @@ def list_bounced() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 def _build_steps(lead: dict[str, Any], angle: str) -> tuple[list[dict[str, Any]], str]:
     """AI redraft for the new contact (user's call), falling back to the angle's
-    canonical template copy so the batch never stalls on an OpenAI hiccup."""
+    canonical template copy so the batch never stalls on a model hiccup."""
     try:
         steps, provider = draft_email_sequence(lead, angle or None)
         if steps:
@@ -201,8 +201,9 @@ def _build_steps(lead: dict[str, Any], angle: str) -> tuple[list[dict[str, Any]]
     ang = get_angle(angle) or get_angle(pick_angle(lead))
     gaps = followup_gap_days() or [3, 5, 7]
     raw = render_angle_steps(ang, lead, brand.sender_name())
+    # Per-show angles carry their own dated cadence; the general ten use the gaps.
     steps = [{"subject": s["subject"], "body": s["body"],
-              "delay_after_prev_days": 0 if i == 0 else gaps[(i - 1) % len(gaps)]}
+              "delay_after_prev_days": s.get("delay_after_prev_days", 0 if i == 0 else gaps[(i - 1) % len(gaps)])}
              for i, s in enumerate(raw)]
     return steps, "template"
 

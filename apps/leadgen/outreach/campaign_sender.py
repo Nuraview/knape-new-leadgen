@@ -312,7 +312,9 @@ def _build_sequence(lead: dict[str, Any], angle_override: str | None = None) -> 
            "industry": lead.get("industry") or "", "location": lead.get("location") or "", "email": lead["to_email"]}
     gaps = followup_gap_days() or [3, 5, 7]
     raw = render_angle_steps(get_angle(angle), ctx, brand.sender_name())
-    steps = [{"subject": s["subject"], "body": s["body"], "delay_after_prev_days": 0 if i == 0 else gaps[(i - 1) % len(gaps)]}
+    # Per-show angles carry their own dated cadence; the general ten use the gaps.
+    steps = [{"subject": s["subject"], "body": s["body"],
+              "delay_after_prev_days": s.get("delay_after_prev_days", 0 if i == 0 else gaps[(i - 1) % len(gaps)])}
              for i, s in enumerate(raw)]
     # create_sequence, not upsert_draft.
     #

@@ -22,6 +22,10 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import Layout from "@/components/common/layout";
 import { IcpRadar } from "@/components/leadgen/icp-radar";
+import {
+  profileWithoutReason,
+  TierReason,
+} from "@/components/leadgen/tier-chip";
 import PageTitle from "@/components/page-title";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -63,6 +67,9 @@ type AccountDetail = {
   client_rating?: number | null;
   /** Unix seconds. */
   client_rating_at?: number | null;
+  /** Trade-show tier (raw accounts.tier) and the research pass's reason for it. */
+  tier?: string | null;
+  tier_reason?: string | null;
 };
 
 type Contact = {
@@ -195,7 +202,7 @@ function RouteComponent() {
     qc.invalidateQueries({ queryKey: ["leadgen", "lead-email", accountId] });
 
   /*
-   * The cockpit answers 200 whether or not it actually reached OpenAI: with no
+   * The cockpit answers 200 whether or not it actually reached Claude: with no
    * API key, draft_email_sequence() falls back to the canned template sequence
    * and reports provider="template". That failure is invisible — a draft
    * appears, it just is not the AI's — and it ran for ten days before anyone
@@ -309,9 +316,17 @@ function RouteComponent() {
                   ) : null}
                 </div>
 
-                {a.spark_brief ? (
-                  <p className="mt-3 text-sm">{a.spark_brief}</p>
+                {profileWithoutReason(a.spark_brief, a.tier_reason) ? (
+                  <p className="mt-3 text-sm">
+                    {profileWithoutReason(a.spark_brief, a.tier_reason)}
+                  </p>
                 ) : null}
+                {/* Exhibitor rows link here, so the full (unclamped) reason. */}
+                <TierReason
+                  tierKey={a.tier}
+                  reason={a.tier_reason}
+                  className="mt-3 line-clamp-none text-sm"
+                />
 
                 {/*
                   The radar is the cockpit's own view of these four numbers, and
@@ -611,7 +626,8 @@ function RouteComponent() {
                 {usedTemplate ? (
                   <p className="mt-2 text-xs text-amber-500">
                     This draft came from the built-in template, not the AI — the
-                    cockpit has no OpenAI key configured, so it fell back. The
+                    cockpit could not reach Claude (no Anthropic key, or the call
+                    failed), so it fell back. The
                     copy below is generic and needs editing before it goes out.
                   </p>
                 ) : null}

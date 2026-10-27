@@ -192,14 +192,19 @@ def notify(lead: dict[str, Any]) -> None:
     school_type = (lead.get("school_type") or "").strip()
     notes = (lead.get("notes") or "").strip()
     source = (lead.get("source") or "").strip()
-    grant = "Yes" if lead.get("grant_interest") else "No"
+    # Only worth a row when asked for; the WorkBoat form has no such field.
+    grant = "Yes" if lead.get("grant_interest") else ""
 
     # ---- 1. internal alert -------------------------------------------------
+    #
+    # Labels match the CRM's Inbound page: the field names are the capture
+    # endpoint's original wire names (school, students_count, school_type), the
+    # labels are neutral so a Knape landing-page enquiry reads correctly.
     try:
         rows = "".join([
             _row("Name", name), _row("Email", email), _row("Phone", phone),
-            _row("School", school), _row("Role", role),
-            _row("Students", students), _row("School type", school_type),
+            _row("Organisation", school), _row("Role", role),
+            _row("Size", students), _row("Segment", school_type),
             _row("Grant help", grant), _row("Page", source),
         ])
         note_html = (
@@ -208,21 +213,21 @@ def notify(lead: dict[str, Any]) -> None:
             if notes else ""
         )
         inner = (
-            f'<p style="margin:0 0 14px;font-size:17px;font-weight:600;">New sample request</p>'
+            f'<p style="margin:0 0 14px;font-size:17px;font-weight:600;">New website enquiry</p>'
             f'<table style="border-collapse:collapse;font-size:14px;">{rows}</table>'
             f'{note_html}'
             f'<p style="margin:22px 0 0;"><a href="mailto:{html.escape(email)}" '
             f'style="background:{GOLD};color:{INK};text-decoration:none;padding:10px 20px;'
             f'border-radius:999px;font-weight:600;">Reply to {html.escape(name or email)}</a></p>'
         )
-        text = "New sample request\n\n" + "\n".join(
+        text = "New website enquiry\n\n" + "\n".join(
             f"{k}: {v}" for k, v in (
-                ("Name", name), ("Email", email), ("Phone", phone), ("School", school),
-                ("Role", role), ("Students", students), ("School type", school_type),
+                ("Name", name), ("Email", email), ("Phone", phone), ("Organisation", school),
+                ("Role", role), ("Size", students), ("Segment", school_type),
                 ("Grant help", grant), ("Page", source), ("Notes", notes),
             ) if v
         )
-        _send(inbox, notify_to(), f"New sample request — {name or email}"
+        _send(inbox, notify_to(), f"New website enquiry: {name or email}"
               + (f" ({school})" if school else ""), text, _shell(inner), reply_to=email)
     except Exception as e:  # noqa: BLE001
         print(f"lead_notify: internal alert failed: {e}", flush=True)

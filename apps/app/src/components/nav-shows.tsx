@@ -1,12 +1,12 @@
 /**
  * The "SHOWS" sidebar group: one entry per trade show, each opening into its
- * Exhibitors and Attendees lists.
+ * Exhibitors and Attendees lists and its Possible messaging angles.
  *
  * Modelled on nav-crm.tsx and ported in spirit from the tec5 lead-gen app, whose
  * sidebar had exactly this group. The shows come from the EVENTS registry, so a
- * new show is one registry entry and needs no change here. Both sub-items point
+ * new show is one registry entry and needs no change here. Every sub-item points
  * at the one show-detail route (/events/<slug>) with a ?view= that picks the
- * Exhibitors table or the Attendees card grid.
+ * Exhibitors table, the Attendees card grid or the angles awaiting approval.
  *
  * Shown only where a lead-gen cockpit is connected (config.hasLeadgen) and the
  * account can read leads, the same gate the flat "Events" entry used before it
@@ -50,7 +50,15 @@ const SHOW_ICONS: Record<string, LucideIcon> = {
 const SUB_ITEMS = [
 	["exhibitors", "Exhibitors"],
 	["attendees", "Attendees"],
+	["angles", "Possible messaging angles"],
 ] as const;
+
+/** The ?view= on screen, matching the route's own default. */
+function currentView(search: string): (typeof SUB_ITEMS)[number][0] {
+	if (search.includes("view=attendees")) return "attendees";
+	if (search.includes("view=angles")) return "angles";
+	return "exhibitors";
+}
 
 export function NavShows() {
 	const navigate = useNavigate();
@@ -122,11 +130,7 @@ export function NavShows() {
 										{isOpen ? (
 											<ul className="ms-6 mt-0.5 space-y-0.5 border-s border-sidebar-border/60 ps-2">
 												{SUB_ITEMS.map(([v, label]) => {
-													const wantsAttendees = v === "attendees";
-													const active =
-														onShow &&
-														wantsAttendees ===
-															search.includes("view=attendees");
+													const active = onShow && currentView(search) === v;
 													return (
 														<li key={v}>
 															<button

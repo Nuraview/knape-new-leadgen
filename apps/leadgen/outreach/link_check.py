@@ -11,7 +11,8 @@ So this is the check, and it is cheap: three HEAD requests. Run it from the CLI
 (``main.py check-links``), from the dashboard (``GET /api/emails/link-check``),
 and after any template edit.
 
-Deliberately fetches the URLs the ANGLES actually contain rather than the
+Deliberately fetches the URLs the angles (the ten and every per-show set)
+actually contain rather than the
 APPROVED_LINKS constant. Asserting the constants are reachable proves nothing
 about what a recipient receives — the templates are what get sent, and it was
 exactly that gap between "the approved list" and "what the copy says" that
@@ -26,7 +27,7 @@ import urllib.request
 from typing import Any
 
 from outreach import brand
-from outreach.messaging_angles import ANGLES, APPROVED_LINKS, render_angle_steps
+from outreach.messaging_angles import APPROVED_LINKS, all_angles, render_angle_steps
 
 _URL = re.compile(r"https?://[^\s<>\")]+")
 
@@ -59,9 +60,9 @@ def template_urls() -> dict[str, list[str]]:
     """
     lead = {"person_name": "Test Person", "company": "Test School", "job_title": "Athletic Director"}
     out: dict[str, list[str]] = {}
-    for angle in ANGLES:
+    for angle in all_angles():
         found: list[str] = []
-        for step in render_angle_steps(angle, lead, brand.sender_name()):
+        for step in render_angle_steps(angle, lead, brand.sender_name(), include_skipped=True):
             for u in _URL.findall(step.get("body") or ""):
                 u = u.rstrip(".,);:")
                 if u not in found:

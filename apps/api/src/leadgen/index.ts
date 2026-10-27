@@ -27,8 +27,8 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { requireLeadsAccess } from "../utils/require-crm-access";
 
-/** Upstream base, e.g. https://dan.nuraview.com */
-function leadgenBase(): string {
+/** Upstream base, e.g. https://dan.nuraview.com. Shared with ./public. */
+export function leadgenBase(): string {
   const raw = process.env.LEADGEN_API_BASE?.trim();
   if (!raw) {
     throw new HTTPException(503, {

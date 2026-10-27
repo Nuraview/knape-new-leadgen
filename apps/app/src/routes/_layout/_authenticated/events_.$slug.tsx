@@ -12,6 +12,9 @@
  * all server-side (cockpit GET /api/accounts), so they hold across the whole
  * pool, not just the rows on screen. The tier chips' counts come from
  * GET /api/events, which counts the whole pool.
+ *
+ * ?view= picks the tab: exhibitors (this table), attendees (the card grid) or
+ * angles (the show's possible messaging angles, for the client's approval).
  */
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -26,8 +29,13 @@ import {
 import { useState } from "react";
 import Layout from "@/components/common/layout";
 import { AttendeesGrid } from "@/components/leadgen/company-grid";
+import { EventAngles } from "@/components/leadgen/event-angles";
 import { LeadsPager } from "@/components/leadgen/leads-pager";
-import { TierChip, TierLegend } from "@/components/leadgen/tier-chip";
+import {
+	TierChip,
+	TierLegend,
+	TierReason,
+} from "@/components/leadgen/tier-chip";
 import PageTitle from "@/components/page-title";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -50,7 +58,13 @@ const EXPORT_PAGE_SIZE = 2000;
 const COLS = "88px minmax(0,1.6fr) minmax(0,1fr) 92px 84px 76px";
 
 type ListFilter = "all" | "contacts" | "email";
-type EventView = "exhibitors" | "attendees";
+type EventView = "exhibitors" | "attendees" | "angles";
+
+const VIEW_TABS: [EventView, string][] = [
+	["exhibitors", "Exhibitors"],
+	["attendees", "Attendees"],
+	["angles", "Messaging angles"],
+];
 
 function scoreTone(score: number | undefined): string {
 	const s = score ?? 0;
@@ -196,9 +210,9 @@ function RouteComponent() {
 					/ {ev?.shortName ?? title}
 				</span>
 
-				{/* Exhibitors / Attendees tabs: two views of one show pool. */}
+				{/* Exhibitors / Attendees / Messaging angles: views of one show. */}
 				<div className="ms-3 inline-flex rounded-md border border-border p-0.5 text-xs">
-					{(["exhibitors", "attendees"] as EventView[]).map((v) => (
+					{VIEW_TABS.map(([v, label]) => (
 						<button
 							key={v}
 							type="button"
@@ -210,13 +224,13 @@ function RouteComponent() {
 								})
 							}
 							className={cn(
-								"rounded px-2.5 py-1 capitalize transition-colors",
+								"whitespace-nowrap rounded px-2.5 py-1 transition-colors",
 								view === v
 									? "bg-foreground text-background"
 									: "text-muted-foreground hover:text-foreground",
 							)}
 						>
-							{v}
+							{label}
 						</button>
 					))}
 				</div>
@@ -243,7 +257,9 @@ function RouteComponent() {
 					</p>
 				</div>
 
-				{view === "attendees" ? (
+				{view === "angles" ? (
+					<EventAngles slug={slug} />
+				) : view === "attendees" ? (
 					<AttendeesGrid slug={slug} />
 				) : (
 				<>
@@ -379,6 +395,11 @@ function RouteComponent() {
 															.join(" · ")}
 													</span>
 												) : null}
+												<TierReason
+													tierKey={a.tier}
+													reason={a.tier_reason}
+													className="mt-1"
+												/>
 											</span>
 
 											<span className="max-md:hidden min-w-0 text-sm text-muted-foreground">
@@ -437,7 +458,10 @@ function RouteComponent() {
 
 export const Route = createFileRoute("/_layout/_authenticated/events_/$slug")({
 	validateSearch: (search: Record<string, unknown>): { view: EventView } => ({
-		view: search.view === "attendees" ? "attendees" : "exhibitors",
+		view:
+			search.view === "attendees" || search.view === "angles"
+				? search.view
+				: "exhibitors",
 	}),
 	component: RouteComponent,
 });
