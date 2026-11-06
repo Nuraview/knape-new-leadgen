@@ -1,5 +1,5 @@
 /**
- * Knape Associates service outage notice: a banner at the top of Home and a
+ * Service outage notice: a banner at the top of Home and a
  * popup that keeps coming back.
  *
  * These are account and billing problems, not something the app can detect,
@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { useBrand } from "@/hooks/use-brand";
 
 const REOPEN_AFTER_MS = 60_000;
 
@@ -71,6 +72,7 @@ function IssueList({ compact = false }: { compact?: boolean }) {
 }
 
 export function ServiceOutage() {
+  const brand = useBrand();
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export function ServiceOutage() {
           <AlertOctagon className="size-8 shrink-0 animate-pulse text-red-600" />
           <div className="min-w-0 flex-1">
             <p className="font-bold text-red-600 text-xs uppercase tracking-wider dark:text-red-400">
-              Knape Associates · Service outage
+              {brand.shortName} · Service outage
             </p>
             <h2 className="mt-1 font-bold text-red-600 text-xl leading-tight sm:text-2xl dark:text-red-400">
               Instantly.ai payment is down and the mail pool is offline
@@ -111,7 +113,7 @@ export function ServiceOutage() {
             <div className="flex items-center gap-2 max-sm:justify-center">
               <AlertOctagon className="size-6 shrink-0 animate-pulse text-red-600" />
               <AlertDialogTitle className="text-red-600 dark:text-red-400">
-                Knape Associates: services are down
+                {brand.shortName}: services are down
               </AlertDialogTitle>
             </div>
             <AlertDialogDescription>
