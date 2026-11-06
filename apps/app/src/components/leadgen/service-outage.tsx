@@ -30,23 +30,23 @@ const ISSUES = [
   {
     key: "instantly",
     icon: MailX,
-    title: "Instantly.ai payment failed. The mail pool is down.",
+    title: "Instantly.ai is down: payment has not been made.",
     detail:
-      "The Instantly.ai subscription payment didn't go through, so the sending mailboxes are offline. No outreach emails or follow-ups are going out until the payment is fixed.",
+      "The Instantly.ai subscription has not been paid, so the tool is suspended and the mail pool is offline. No outreach emails or follow-ups will go out until the payment is made.",
   },
   {
     key: "infrastructure",
     icon: ServerCrash,
-    title: "Infrastructure will be down: tool renewals are due.",
+    title: "Infrastructure will go down: tool renewals are unpaid.",
     detail:
-      "The tool subscriptions that run the servers and databases are up for renewal. If they aren't renewed, the infrastructure behind this dashboard will go offline.",
+      "The servers and databases behind this dashboard run on tools that are due for renewal. If the renewal payments are not made, the infrastructure will go offline.",
   },
   {
     key: "automations",
     icon: Workflow,
-    title: "Automations will be down: tool renewals are due.",
+    title: "Automations will go down: tool renewals are unpaid.",
     detail:
-      "Lead finding, enrichment and the scheduled email runs depend on the same tools. They will stop when the subscriptions lapse.",
+      "Lead finding, enrichment and the scheduled email runs depend on the same tools. They will stop if the renewal payments are not made.",
   },
 ] as const;
 
@@ -94,11 +94,12 @@ export function ServiceOutage() {
               {brand.shortName} · Service outage
             </p>
             <h2 className="mt-1 font-bold text-red-600 text-xl leading-tight sm:text-2xl dark:text-red-400">
-              Instantly.ai payment is down and the mail pool is offline
+              Instantly.ai is down because payment has not been made
             </h2>
             <p className="mt-1 text-muted-foreground text-sm">
-              Outreach has stopped, and infrastructure and automations will go
-              down too unless the tools are renewed.
+              The mail pool is offline and outreach has stopped. Infrastructure
+              and automations will go down too unless the tool renewals are
+              paid.
             </p>
           </div>
         </div>
@@ -117,8 +118,8 @@ export function ServiceOutage() {
               </AlertDialogTitle>
             </div>
             <AlertDialogDescription>
-              Billing and renewal problems need to be fixed before outreach can
-              start again.
+              These tools are down because payment has not been made. They come
+              back once the payments are made.
             </AlertDialogDescription>
             <div className="mt-2 text-left">
               <IssueList compact />
