@@ -34,6 +34,7 @@ import { DoThisNow } from "@/components/leadgen/do-this-now";
 import { EmailHistory } from "@/components/leadgen/email-history";
 import { LeadFunnel } from "@/components/leadgen/lead-funnel";
 import { ProviderHealth } from "@/components/leadgen/provider-health";
+import { ServiceOutage } from "@/components/leadgen/service-outage";
 import { SentVolume } from "@/components/leadgen/sent-volume";
 import { useBrand } from "@/hooks/use-brand";
 
@@ -159,6 +160,8 @@ function RouteComponent() {
             What to do, before what happened. Everything below this reports;
             this decides.
           */}
+          <ServiceOutage />
+
           {/*
             Above everything. If lead-finding has stopped, no number below is
             worth reading and the reason belongs at the top of the page, not in
